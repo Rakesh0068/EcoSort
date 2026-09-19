@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ML artifacts (large binaries - never commit)
+artifacts/runs/
+artifacts/metrics/
+artifacts/splits/
+artifacts/uploads/
+*.h5
+*.keras
+*.pt
+*.pth
+*.ckpt
+
+# Data
+data/
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# Node
+node_modules/
+web/dist/
+web/.vite/
+npm-debug.log*
+
+# Env / editor
+.env
+.env.local
+.DS_Store
+.vscode/
+.idea/
+
+# DB
+*.db
+*.sqlite3

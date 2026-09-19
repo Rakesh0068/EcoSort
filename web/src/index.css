@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Light: ivory / off-white, deep forest green, emerald, soft lime ---- */
+:root {
+  --bg: 247 248 245;
+  --surface: 255 255 255;
+  --surface-2: 241 244 239;
+  --line: 223 229 223;
+  --ink: 27 33 30;
+  --muted: 104 116 109;
+  --forest: 20 52 43;
+  --emerald: 5 150 105;
+  --lime: 132 204 22;
+  --amber: 180 120 8;
+  --rose: 190 44 60;
+}
+
+/* ---- Dark: #0B0F0D base, dark green surfaces, emerald highlights ---- */
+.dark {
+  --bg: 11 15 13;
+  --surface: 18 24 21;
+  --surface-2: 24 32 28;
+  --line: 39 50 45;
+  --ink: 238 244 241;
+  --muted: 148 164 156;
+  --forest: 167 243 208;
+  --emerald: 52 211 153;
+  --lime: 190 242 100;
+  --amber: 251 191 36;
+  --rose: 251 113 133;
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--line));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background-color: rgb(var(--bg));
+    color: rgb(var(--ink));
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: rgb(var(--emerald) / 0.28);
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+
+  /* Slim, unobtrusive scrollbars to match the minimal aesthetic */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--line));
+    border-radius: 999px;
+    border: 3px solid rgb(var(--bg));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--muted) / 0.5);
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--emerald) / 0.7);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Soft glass card used across the dashboard */
+  .card {
+    @apply rounded-card border border-line bg-surface/80 shadow-soft backdrop-blur-xl;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:shadow-lift;
+  }
+
+  .kicker {
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-muted;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-semibold transition-all duration-200 ease-spring
+           disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .btn-primary {
+    @apply btn bg-emerald text-white shadow-glow hover:brightness-110 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply btn border border-line bg-surface/60 hover:border-emerald/50 hover:bg-surface2 active:scale-[0.98];
+  }
+
+  .btn-danger {
+    @apply btn bg-rose text-white hover:brightness-110 active:scale-[0.98];
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface2/70
+           px-2.5 py-1 font-mono text-[11px] font-medium tracking-wide text-muted;
+  }
+
+  .stat-value {
+    @apply font-mono text-3xl font-semibold tracking-tight text-ink tabular-nums;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface2/60 px-3 py-2 text-sm
+           transition-colors placeholder:text-muted/70 focus:border-emerald/60 focus:outline-none;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted
+           transition-all duration-200 hover:bg-surface2 hover:text-ink;
+  }
+
+  .nav-item-active {
+    @apply bg-emerald/12 text-ink shadow-[inset_0_0_0_1px_rgb(var(--emerald)/0.22)];
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--surface-2)) 0%,
+      rgb(var(--line) / 0.6) 50%,
+      rgb(var(--surface-2)) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-lg;
+  }
+
+  .grid-bg {
+    background-image: linear-gradient(to right, rgb(var(--line) / 0.55) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(var(--line) / 0.55) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

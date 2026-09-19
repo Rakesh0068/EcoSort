@@ -1,0 +1,25 @@
+INFO:     Started server process [37212]
+INFO:     Waiting for application startup.
+C:\Users\rakes\AppData\Local\Programs\Python\Python312\Lib\site-packages\torch\autograd\graph.py:825: UserWarning: Attempting to run cuBLAS, but there was no current CUDA context! Attempting to set the primary context... (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\builder\windows\pytorch\aten\src\ATen\cuda\CublasHandlePool.cpp:135.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+model loaded: C:\EcoSort\artifacts\runs\run-001\best.pt
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54200 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61357 - "POST /api/predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54486 - "GET /api/robot/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54487 - "POST /api/robot/simulate/step HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54489 - "GET /api/robot/compatibility HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54490 - "GET /api/classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51865 - "GET /api/scans?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51866 - "GET /api/scans?limit=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58667 - "POST /api/scans/ad5bd959da964bb1/feedback HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58671 - "POST /api/scans/ad5bd959da964bb1/feedback HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58672 - "GET /api/review-queue HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58673 - "GET /api/activity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58674 - "POST /api/scans/ad5bd959da964bb1/feedback HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:58675 - "POST /api/scans/ad5bd959da964bb1/feedback HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:64704 - "GET /api/training/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "GET /api/classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58262 - "GET /api/metrics HTTP/1.1" 200 OK
