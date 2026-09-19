@@ -25,6 +25,9 @@ export default {
         card: '20px',
         xl2: '24px',
       },
+      opacity: {
+        12: '0.12',
+      },
       boxShadow: {
         soft: '0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12)',
         lift: '0 2px 4px rgb(0 0 0 / 0.04), 0 16px 40px -16px rgb(0 0 0 / 0.22)',

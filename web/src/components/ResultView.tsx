@@ -112,7 +112,7 @@ function FeedbackBlock({
   }
 
   const submit = async () => {
-    if (verdict === null) return
+    if (!result.scan_id || verdict === null) return
     setBusy(true)
     setErr(null)
     try {

@@ -3,10 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -154,7 +151,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <span className="kicker">Training</span>
               <Badge tone={training ? 'info' : 'neutral'}>
-                <StatusDot tone={training ? 'lime' : 'muted'} pulse={training} />
+                <StatusDot tone={training ? 'lime' : 'muted'} pulse={training ?? false} />
                 {run?.status ?? 'idle'}
               </Badge>
             </div>
