@@ -359,13 +359,13 @@ export const api = {
   },
   scan: (id: string) => req<Scan>(`/api/scans/${id}`),
   scanExplain: (id: string) => req<PredictionResult>(`/api/scans/${id}/explain`),
-  feedback: (id: string, correct: boolean, correctClass?: string) =>
+  feedback: (id: string, correct: boolean, correctClass?: string, source = 'user') =>
     req<{ correction_id: string; verified_class: string; was_correct: boolean }>(
       `/api/scans/${id}/feedback`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correct, correct_class: correctClass ?? null }),
+        body: JSON.stringify({ correct, correct_class: correctClass ?? null, source }),
       },
     ),
   corrections: (limit = 100) =>

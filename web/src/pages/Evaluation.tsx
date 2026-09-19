@@ -1,4 +1,13 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { api, type Evaluation, type MisclassifiedExample } from '../api'
 import {
   Badge,
@@ -14,345 +23,360 @@ import {
   pct,
 } from '../components/ui'
 
-const cellTone = (frac: number) => `rgba(251, 113, 133, ${0.08 + 0.72 * frac})`
-const diagTone = (frac: number) => `rgba(52, 211, 153, ${0.10 + 0.72 * frac})`
+/** Cell the user clicked in the confusion matrix. */
+type Cell = { t: number; p: number }
 
-export default function Evaluation() {
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
-  const [note, setNote] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [pair, setPair] = useState<{ true: string; pred: string } | null>(null)
-  const [examples, setExamples] = useState<MisclassifiedExample[]>([])
-  const [examplesLoading, setExamplesLoading] = useState(false)
-  const [examplesError, setExamplesError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const r = await api.metrics()
-      if (r.available && r.evaluation) setEvaluation(r.evaluation)
-      else setNote(r.note ?? 'No evaluation available yet.')
-      setError(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load evaluation')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+export default function EvaluationPage() {
+  const [data, setData] = useState<Evaluation | null>(null)
+  const [error, setError] = useState('')
+  const [cell, setCell] = useState<Cell | null>(null)
+  const [examples, setExamples] = useState<MisclassifiedExample[] | null>(null)
+  const [exError, setExError] = useState('')
 
   useEffect(() => {
-    void load()
-  }, [load])
-
-  const openPair = useCallback(async (trueClass: string, predClass: string) => {
-    setPair({ true: trueClass, pred: predClass })
-    setExamplesLoading(true)
-    setExamplesError(null)
-    try {
-      const r = await api.misclassified(trueClass, predClass)
-      setExamples(r.examples)
-    } catch (e) {
-      setExamplesError(e instanceof Error ? e.message : 'failed to load examples')
-      setExamples([])
-    } finally {
-      setExamplesLoading(false)
+    let live = true
+    api
+      .metrics()
+      .then((r) => {
+        if (!live) return
+        if (r.available && r.evaluation) setData(r.evaluation)
+        else setError(r.note ?? 'No evaluation available.')
+      })
+      .catch((e: Error) => live && setError(e.message))
+    return () => {
+      live = false
     }
   }, [])
 
-  const classes = evaluation?.classes ?? []
-  const cm = evaluation?.confusion_matrix ?? []
+  const ev = data
 
-  const rowSums = useMemo(() => cm.map((row) => row.reduce((a, b) => a + b, 0)), [cm])
-  const maxOffDiag = useMemo(
-    () =>
-      cm.reduce(
-        (max, row, i) => Math.max(max, ...row.filter((_, j) => j !== i)),
-        0,
-      ),
-    [cm],
+  // Load real misclassified photos whenever the selected matrix cell changes.
+  useEffect(() => {
+    if (!ev || !cell) {
+      setExamples(null)
+      return
+    }
+    let live = true
+    setExamples(null)
+    setExError('')
+    api
+      .misclassified(ev.classes[cell.t], ev.classes[cell.p])
+      .then((r) => live && setExamples(r.examples))
+      .catch((e: Error) => {
+        if (live) setExError(e.message)
+      })
+    return () => {
+      live = false
+    }
+  }, [ev, cell])
+
+  const perClass = useMemo(
+    () => (ev ? ev.classes.map((c) => ({ cls: c, ...(ev.metrics.per_class[c] ?? {}) })) : []),
+    [ev],
   )
 
-  if (loading) return <Loading label="Loading evaluation" />
+  if (error) return <ErrorState message={error} />
+  if (!ev) return <Loading label="Loading evaluation" />
+
+  const m = ev.metrics
+  const maxCell = Math.max(1, ...ev.confusion_matrix.flat())
+  const gate = ev.selective_accuracy.find((s) => Math.abs(s.threshold - ev.confidence_distribution.threshold) < 1e-9)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SectionTitle
-        title="Model Evaluation"
-        sub="Held-out test-set audit of the trained checkpoint — confusion, per-class quality and selective accuracy."
+        title="Evaluation"
+        sub={`Measured on the held-out ${ev.split} split — never used for training or validation.`}
         right={
-          evaluation ? (
-            <Badge tone="info">
-              {evaluation.architecture} · {evaluation.weights} · {evaluation.num_samples} samples
-            </Badge>
-          ) : undefined
+          <div className="flex flex-wrap gap-1.5">
+            <Badge tone="info">{ev.run_id}</Badge>
+            <Badge>{ev.architecture}</Badge>
+            <Badge tone="good">{ev.num_samples} samples</Badge>
+          </div>
         }
       />
 
-      {error && <ErrorState message={error} />}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Accuracy" value={pct(m.accuracy, 2)} sub={`${ev.num_samples} test images`} />
+        <Stat label="Precision (macro)" value={pct(m.precision_macro, 2)} sub="Unweighted mean over 10 classes" />
+        <Stat label="Recall (macro)" value={pct(m.recall_macro, 2)} sub="Unweighted mean over 10 classes" />
+        <Stat label="F1 (macro)" value={pct(m.f1_macro, 2)} sub={`Weighted F1 ${pct(m.f1_weighted, 2)}`} />
+      </div>
 
-      {!evaluation && !error && (
-        <Empty
-          title="No evaluation has been run yet"
-          hint={note ?? undefined}
-          icon="◈"
-        />
-      )}
-
-      {evaluation && (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat
-              label="Test accuracy"
-              value={pct(evaluation.metrics.accuracy, 2)}
-              sub={`${evaluation.num_samples} held-out samples`}
-            />
-            <Stat
-              label="F1 (macro)"
-              value={pct(evaluation.metrics.f1_macro, 2)}
-              sub={`weighted ${pct(evaluation.metrics.f1_weighted, 2)}`}
-            />
-            <Stat
-              label="Precision (macro)"
-              value={pct(evaluation.metrics.precision_macro, 2)}
-              sub={`weighted ${pct(evaluation.metrics.precision_weighted, 2)}`}
-            />
-            <Stat
-              label="Recall (macro)"
-              value={pct(evaluation.metrics.recall_macro, 2)}
-              sub={`weighted ${pct(evaluation.metrics.recall_weighted, 2)}`}
-            />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Per-class quality */}
-            <Card>
-              <Kicker>Per-class metrics — {evaluation.split} split</Kicker>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-line font-mono text-[10px] uppercase tracking-wider text-muted">
-                      <th className="py-2 pr-3 font-medium">Class</th>
-                      <th className="py-2 pr-3 text-right font-medium">Precision</th>
-                      <th className="py-2 pr-3 text-right font-medium">Recall</th>
-                      <th className="py-2 pr-3 text-right font-medium">F1</th>
-                      <th className="py-2 text-right font-medium">Support</th>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Class performance */}
+        <Card className="lg:col-span-2">
+          <Kicker>Class performance</Kicker>
+          <p className="mt-1 mb-4 text-xs text-muted">
+            Sorted by F1. Support is the true number of test images in that class, so the weaker rows show where the
+            dataset is thin rather than where the model is merely noisy.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="py-2 pr-3 font-medium">Class</th>
+                  <th className="py-2 pr-3 font-medium">F1</th>
+                  <th className="py-2 pr-3 font-medium">Precision</th>
+                  <th className="py-2 pr-3 font-medium">Recall</th>
+                  <th className="py-2 pr-3 text-right font-medium">Support</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...perClass]
+                  .sort((a, b) => (b.f1 ?? 0) - (a.f1 ?? 0))
+                  .map((r) => (
+                    <tr key={r.cls} className="border-b border-line/50 last:border-0">
+                      <td className="py-2.5 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="capitalize text-ink">{r.cls}</span>
+                          {(r.f1 ?? 0) < 0.9 && <Badge tone="warn">weak</Badge>}
+                        </div>
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface2">
+                            <div
+                              className="h-full rounded-full bg-emerald transition-[width] duration-700"
+                              style={{ width: `${(r.f1 ?? 0) * 100}%` }}
+                            />
+                          </div>
+                          <span className="font-mono text-xs tabular-nums">{pct(r.f1, 1)}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 pr-3 font-mono text-xs tabular-nums text-muted">{pct(r.precision, 1)}</td>
+                      <td className="py-2.5 pr-3 font-mono text-xs tabular-nums text-muted">{pct(r.recall, 1)}</td>
+                      <td className="py-2.5 pr-3 text-right font-mono text-xs tabular-nums text-muted">{r.support}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {classes.map((c) => {
-                      const m = evaluation.metrics.per_class[c]
-                      if (!m) return null
-                      return (
-                        <tr key={c} className="border-b border-line/50 last:border-0">
-                          <td className="py-2 pr-3 font-medium capitalize text-ink">{c}</td>
-                          <td className="py-2 pr-3 text-right font-mono text-xs tabular-nums text-muted">
-                            {pct(m.precision, 1)}
-                          </td>
-                          <td className="py-2 pr-3 text-right font-mono text-xs tabular-nums text-muted">
-                            {pct(m.recall, 1)}
-                          </td>
-                          <td className="py-2 pr-3 text-right font-mono text-xs tabular-nums">
-                            <span className={m.f1 < 0.9 ? 'text-amber' : 'text-emerald'}>{pct(m.f1, 1)}</span>
-                          </td>
-                          <td className="py-2 text-right font-mono text-xs tabular-nums text-muted">{m.support}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-
-            {/* Confidence + selective accuracy */}
-            <Card>
-              <Kicker>Confidence behaviour</Kicker>
-              <div className="mt-3">
-                <MetricRow
-                  label="Mean confidence"
-                  value={evaluation.confidence_distribution.mean != null
-                    ? pct(evaluation.confidence_distribution.mean, 2)
-                    : '—'}
-                />
-                <MetricRow
-                  label="Median confidence"
-                  value={evaluation.confidence_distribution.median != null
-                    ? pct(evaluation.confidence_distribution.median, 2)
-                    : '—'}
-                />
-                <MetricRow
-                  label="Below threshold"
-                  value={`${evaluation.confidence_distribution.below_threshold} samples (< ${pct(
-                    evaluation.confidence_distribution.threshold,
-                    0,
-                  )})`}
-                />
-              </div>
-              <div className="mt-5">
-                <Kicker>Selective accuracy — accuracy when the model is allowed to abstain</Kicker>
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-line font-mono text-[10px] uppercase tracking-wider text-muted">
-                        <th className="py-2 pr-3 font-medium">Min confidence</th>
-                        <th className="py-2 pr-3 text-right font-medium">Coverage</th>
-                        <th className="py-2 pr-3 text-right font-medium">Accuracy</th>
-                        <th className="py-2 text-right font-medium">Samples</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {evaluation.selective_accuracy.map((s) => (
-                        <tr key={s.threshold} className="border-b border-line/50 last:border-0">
-                          <td className="py-2 pr-3 font-mono text-xs text-ink">{pct(s.threshold, 0)}</td>
-                          <td className="py-2 pr-3 text-right font-mono text-xs tabular-nums text-muted">
-                            {pct(s.coverage, 1)}
-                          </td>
-                          <td className="py-2 pr-3 text-right font-mono text-xs tabular-nums text-emerald">
-                            {s.accuracy != null ? pct(s.accuracy, 2) : '—'}
-                          </td>
-                          <td className="py-2 text-right font-mono text-xs tabular-nums text-muted">{s.samples}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </Card>
+                  ))}
+              </tbody>
+            </table>
           </div>
+        </Card>
 
-          {/* Confusion matrix */}
-          <Card className="overflow-x-auto">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Kicker>Confusion matrix — rows are true class, columns are predictions</Kicker>
-              <span className="font-mono text-[10px] text-muted">
-                click an off-diagonal cell to inspect errors
-              </span>
+        <div className="space-y-4">
+          {/* Confidence gate evidence */}
+          <Card>
+            <Kicker>Confidence gate</Kicker>
+            <p className="mt-1 mb-3 text-xs text-muted">
+              Accuracy on the subset of predictions the model is confident about, versus how much of the test set that
+              subset covers. This curve is why the robot refuses to actuate below the threshold.
+            </p>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={ev.selective_accuracy} margin={{ top: 4, right: 8, bottom: 0, left: -22 }}>
+                  <CartesianGrid stroke="rgb(var(--line))" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="coverage"
+                    type="number"
+                    domain={[0, 1]}
+                    tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                    stroke="rgb(var(--muted))"
+                    fontSize={11}
+                  />
+                  <YAxis
+                    domain={[0.85, 1]}
+                    tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                    stroke="rgb(var(--muted))"
+                    fontSize={11}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'rgb(var(--surface))',
+                      border: '1px solid rgb(var(--line))',
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                    formatter={(v: number, n: string) => [pct(v, 2), n]}
+                    labelFormatter={(v: number) => `Coverage ${pct(v, 1)}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="accuracy"
+                    name="Accuracy"
+                    stroke="rgb(var(--emerald))"
+                    strokeWidth={2}
+                    dot={{ r: 2.5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-            <div className="mt-4 inline-block min-w-full">
-              <div
-                className="grid gap-px"
-                style={{ gridTemplateColumns: `3.5rem repeat(${classes.length}, minmax(2.4rem, 1fr))` }}
-              >
-                <div />
-                {classes.map((c) => (
-                  <div key={`h-${c}`} className="pb-1 text-center font-mono text-[9px] uppercase text-muted">
-                    {c.slice(0, 5)}
-                  </div>
-                ))}
-                {cm.map((row, i) => (
-                  <Fragment key={`row-${classes[i]}`}>
-                    <div
-                      className="flex items-center justify-end pr-2 font-mono text-[9px] uppercase text-muted"
-                      title={classes[i]}
-                    >
-                      {classes[i].slice(0, 6)}
-                    </div>
-                    {row.map((v, j) => {
-                      const frac = rowSums[i] > 0 ? v / rowSums[i] : 0
-                      const diag = i === j
-                      const clickable = !diag && v > 0
-                      return (
-                        <button
-                          key={`c-${classes[i]}-${classes[j]}`}
-                          disabled={!clickable}
-                          onClick={() => clickable && void openPair(classes[i], classes[j])}
-                          title={`${classes[i]} → ${classes[j]}: ${v}`}
-                          className={cx(
-                            'aspect-square rounded-[4px] font-mono text-[9px] tabular-nums transition-transform',
-                            clickable && 'cursor-pointer hover:scale-110 hover:ring-1 hover:ring-rose',
-                            !clickable && 'cursor-default',
-                            frac > 0.5 ? 'text-white' : diag ? 'text-emerald' : 'text-ink',
-                          )}
-                          style={{ background: diag ? diagTone(frac) : cellTone(frac) }}
-                        >
-                          {v > 0 ? v : ''}
-                        </button>
-                      )
-                    })}
-                  </Fragment>
-                ))}
-              </div>
+            <div className="mt-3">
+              <MetricRow label="Threshold" value={pct(ev.confidence_distribution.threshold, 0)} />
+              <MetricRow
+                label="Accuracy above it"
+                value={gate ? pct(gate.accuracy, 2) : '—'}
+              />
+              <MetricRow label="Coverage above it" value={gate ? pct(gate.coverage, 1) : '—'} />
+              <MetricRow
+                label="Test images held"
+                value={`${ev.confidence_distribution.below_threshold} of ${ev.num_samples}`}
+              />
             </div>
           </Card>
 
-          {/* Confusion pairs + examples */}
           <Card>
-            <Kicker>Most frequent confusions</Kicker>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {evaluation.confusion_pairs_top.map((p) => (
-                <button
-                  key={`${p.true_class}-${p.predicted_class}`}
-                  onClick={() => void openPair(p.true_class, p.predicted_class)}
-                  className={cx(
-                    'rounded-lg border px-3 py-1.5 text-xs transition-colors',
-                    pair?.true === p.true_class && pair?.pred === p.predicted_class
-                      ? 'border-rose/50 bg-rose/10 text-ink'
-                      : 'border-line bg-surface2/50 text-muted hover:border-rose/40 hover:text-ink',
-                  )}
+            <Kicker>Run</Kicker>
+            <div className="mt-3">
+              <MetricRow label="Checkpoint" value={ev.weights} />
+              <MetricRow label="Split" value={ev.split} />
+              <MetricRow label="Best val acc" value={pct(ev.training_best_val_acc, 2)} />
+              <MetricRow label="Test accuracy" value={pct(m.accuracy, 2)} />
+              <MetricRow label="Generated" value={ev.generated_at.replace('T', ' ')} />
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-muted">
+              Validation and test accuracy differ by{' '}
+              {ev.training_best_val_acc != null
+                ? `${((m.accuracy - ev.training_best_val_acc) * 100).toFixed(2)} pts`
+                : '—'}
+              . Both are reported so the gap between them is visible rather than hidden.
+            </p>
+          </Card>
+        </div>
+      </div>
+
+      {/* Confusion matrix */}
+      <Card>
+        <Kicker>Confusion matrix</Kicker>
+        <p className="mt-1 mb-4 text-xs text-muted">
+          Rows are the true class, columns are what the model predicted. Click any off-diagonal cell to see the actual
+          images that were confused.
+        </p>
+        <div className="overflow-x-auto">
+          <div className="inline-block min-w-full">
+            <div className="flex">
+              <div className="w-20 shrink-0" />
+              {ev.classes.map((c) => (
+                <div
+                  key={`h-${c}`}
+                  className="flex h-16 w-12 shrink-0 items-end justify-center pb-1 sm:w-14"
+                  title={`Predicted: ${c}`}
                 >
-                  <span className="font-semibold capitalize">{p.true_class}</span>
-                  <span className="mx-1.5 text-rose">→</span>
-                  <span className="font-semibold capitalize">{p.predicted_class}</span>
-                  <span className="ml-2 font-mono text-[10px] text-muted">×{p.count}</span>
-                </button>
+                  <span className="rotate-[-60deg] whitespace-nowrap text-[10px] capitalize text-muted">{c}</span>
+                </div>
               ))}
             </div>
-
-            {pair && (
-              <div className="mt-5 border-t border-line pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-ink">
-                    True <span className="capitalize">{pair.true}</span> predicted as{' '}
-                    <span className="capitalize">{pair.pred}</span>
-                  </div>
-                  <button className="btn-ghost !px-2.5 !py-1 text-[11px]" onClick={() => setPair(null)}>
-                    Close
-                  </button>
+            {ev.classes.map((tc, ti) => (
+              <div key={`r-${tc}`} className="flex items-center">
+                <div className="w-20 shrink-0 truncate pr-2 text-right text-[11px] capitalize text-muted" title={tc}>
+                  {tc}
                 </div>
-
-                {examplesLoading && <Loading label="Fetching examples" />}
-                {examplesError && <ErrorState message={examplesError} />}
-
-                {!examplesLoading && !examplesError && examples.length === 0 && (
-                  <p className="mt-3 text-xs text-muted">No stored examples for this pair.</p>
-                )}
-
-                {examples.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                    {examples.map((ex, i) => (
-                      <figure key={`${ex.path}-${i}`} className="group">
-                        <div className="overflow-hidden rounded-xl border border-line bg-surface2">
-                          <img
-                            src={ex.url}
-                            alt={`${ex.true_class} misread as ${ex.predicted_class}`}
-                            loading="lazy"
-                            className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        </div>
-                        <figcaption className="mt-1.5 space-y-0.5">
-                          <div className="font-mono text-[10px] text-rose">
-                            conf {pct(ex.confidence, 0)}
-                          </div>
-                          <div className="font-mono text-[10px] text-muted">
-                            true conf {pct(ex.true_confidence, 0)}
-                          </div>
-                        </figcaption>
-                      </figure>
-                    ))}
-                  </div>
-                )}
+                {ev.confusion_matrix[ti].map((n, pi) => {
+                  const diag = ti === pi
+                  const selected = cell?.t === ti && cell?.p === pi
+                  const intensity = diag ? 0.12 + 0.88 * (n / maxCell) : n > 0 ? 0.15 + 0.6 * (n / maxCell) : 0
+                  return (
+                    <button
+                      key={`c-${tc}-${pi}`}
+                      disabled={diag || n === 0}
+                      onClick={() => setCell(selected ? null : { t: ti, p: pi })}
+                      className={cx(
+                        'flex h-9 w-12 shrink-0 items-center justify-center border border-line/40 font-mono text-[11px] tabular-nums transition sm:w-14',
+                        diag
+                          ? 'cursor-default text-ink'
+                          : n > 0
+                            ? 'cursor-pointer text-ink hover:z-10 hover:ring-2 hover:ring-emerald'
+                            : 'cursor-default text-muted/40',
+                        selected && 'ring-2 ring-emerald',
+                      )}
+                      style={{
+                        background: diag
+                          ? `rgb(var(--emerald) / ${intensity})`
+                          : n > 0
+                            ? `rgb(var(--rose) / ${intensity})`
+                            : 'transparent',
+                      }}
+                      title={diag ? `${tc}: ${n} correct` : `${tc} predicted as ${ev.classes[pi]}: ${n}`}
+                    >
+                      {n || ''}
+                    </button>
+                  )
+                })}
               </div>
-            )}
-          </Card>
+            ))}
+          </div>
+        </div>
 
-          <p className="text-[11px] text-muted">
-            Generated {new Date(evaluation.generated_at).toLocaleString()} · checkpoint{' '}
-            <span className="font-mono">{evaluation.checkpoint}</span> · best training val accuracy{' '}
-            {pct(evaluation.training_best_val_acc, 2)} · max off-diagonal count {maxOffDiag}
-          </p>
-        </>
-      )}
+        {/* Top confusion pairs */}
+        <div className="mt-5">
+          <Kicker>Most frequent confusions</Kicker>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ev.confusion_pairs_top.slice(0, 10).map((p) => (
+              <button
+                key={`${p.true_class}-${p.predicted_class}`}
+                onClick={() => {
+                  const t = ev.classes.indexOf(p.true_class)
+                  const q = ev.classes.indexOf(p.predicted_class)
+                  if (t >= 0 && q >= 0) setCell({ t, p: q })
+                }}
+                className="rounded-full border border-line bg-surface2 px-3 py-1.5 text-xs capitalize text-muted transition hover:border-emerald/40 hover:text-ink"
+              >
+                {p.true_class} → {p.predicted_class}
+                <span className="ml-2 font-mono text-[11px] text-ink">{p.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Misclassified examples for the selected cell */}
+        {cell && (
+          <div className="mt-5 border-t border-line pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Kicker className="mr-auto">
+                Misclassified · {ev.classes[cell.t]} predicted as {ev.classes[cell.p]}
+              </Kicker>
+              <button className="btn-ghost px-3 py-1 text-xs" onClick={() => setCell(null)}>
+                Close
+              </button>
+            </div>
+            {exError && <ErrorState message={exError} />}
+            {!exError && examples === null && <Loading label="Loading images" />}
+            {!exError && examples?.length === 0 && (
+              <Empty title="No stored examples for this pair" icon="—" />
+            )}
+            {examples && examples.length > 0 && (
+              <>
+                <p className="mt-1 mb-3 text-xs text-muted">
+                  Real test-split images, with the confidence the model assigned to the wrong class.
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {examples.map((ex) => (
+                    <figure key={ex.path} className="overflow-hidden rounded-xl border border-line bg-surface2">
+                      <img
+                        src={ex.url}
+                        alt={`${ex.true_class} predicted as ${ex.predicted_class}`}
+                        loading="lazy"
+                        className="aspect-square w-full object-cover"
+                      />
+                      <figcaption className="space-y-0.5 p-2">
+                        <div className="text-[11px] capitalize text-ink">
+                          true: <span className="text-emerald">{ex.true_class}</span>
+                        </div>
+                        <div className="text-[11px] capitalize text-muted">
+                          pred: <span className="text-rose">{ex.predicted_class}</span>
+                        </div>
+                        <div className="font-mono text-[10px] tabular-nums text-muted">
+                          {pct(ex.confidence, 1)}
+                        </div>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <Kicker>Confidence distribution</Kicker>
+        <div className="mt-3 grid gap-4 sm:grid-cols-4">
+          <MetricRow label="Mean" value={pct(ev.confidence_distribution.mean, 2)} />
+          <MetricRow label="Median" value={pct(ev.confidence_distribution.median, 2)} />
+          <MetricRow label="Below threshold" value={String(ev.confidence_distribution.below_threshold)} />
+          <MetricRow label="Total" value={String(ev.num_samples)} />
+        </div>
+      </Card>
     </div>
   )
 }

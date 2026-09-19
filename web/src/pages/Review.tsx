@@ -8,234 +8,332 @@ import {
   ErrorState,
   Kicker,
   Loading,
+  MetricRow,
   SectionTitle,
-  clockTime,
+  Stat,
+  confidenceTone,
   cx,
   pct,
   relTime,
 } from '../components/ui'
 
-function thumbUrl(s: Scan): string | null {
-  if (!s.image_path || s.source !== 'upload') return null
-  const name = s.image_path.replace(/\\/g, '/').split('/').pop()
-  return name ? `/uploads/${name}` : null
+type Tab = 'queue' | 'verified'
+
+/** One queued scan with its own label picker and submit state. */
+function QueueItem({
+  scan,
+  classes,
+  onDone,
+}: {
+  scan: Scan
+  classes: string[]
+  onDone: () => void
+}) {
+  const [choice, setChoice] = useState<string>(scan.corrected_class ?? scan.predicted_class)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [broken, setBroken] = useState(false)
+  const tone = confidenceTone(scan.state)
+
+  const submit = async (correct: boolean) => {
+    setBusy(true)
+    setError('')
+    try {
+      await api.feedback(scan.id, correct, correct ? undefined : choice, 'review')
+      onDone()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setBusy(false)
+    }
+  }
+
+  const rejected = scan.was_correct === 0
+  const alternatives = scan.top5.filter((t) => t.class !== scan.predicted_class).slice(0, 3)
+
+  return (
+    <Card className="flex flex-col gap-4 sm:flex-row">
+      <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl border border-line bg-surface2 sm:h-32 sm:w-32">
+        {broken ? (
+          <div className="flex h-full items-center justify-center px-2 text-center text-[11px] text-muted">
+            image no longer available
+          </div>
+        ) : (
+          <img
+            src={`/api/scans/${scan.id}/image`}
+            alt={`Scan predicted as ${scan.predicted_class}`}
+            loading="lazy"
+            onError={() => setBroken(true)}
+            className="h-full w-full object-cover"
+          />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold capitalize text-ink">{scan.predicted_class}</span>
+          <Badge tone={tone.tone}>{pct(scan.confidence, 1)}</Badge>
+          <Badge tone={rejected ? 'bad' : 'warn'}>
+            {rejected ? 'user rejected' : 'low confidence'}
+          </Badge>
+          <span className="ml-auto text-xs text-muted">{relTime(scan.created_at)}</span>
+        </div>
+
+        <p className="mt-1.5 text-xs text-muted">
+          {rejected
+            ? 'A user marked this prediction wrong. The verified label below replaces it in the training candidates.'
+            : 'The model was not confident enough for this to drive a sorting action, so it was held instead of guessed.'}
+        </p>
+
+        {alternatives.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {alternatives.map((a) => (
+              <button
+                key={a.class}
+                onClick={() => setChoice(a.class)}
+                className={cx(
+                  'rounded-full border px-2.5 py-1 text-[11px] capitalize transition',
+                  choice === a.class
+                    ? 'border-emerald/50 bg-emerald/12 text-emerald'
+                    : 'border-line bg-surface2 text-muted hover:text-ink',
+                )}
+              >
+                {a.display} {pct(a.probability, 1)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            value={choice}
+            onChange={(e) => setChoice(e.target.value)}
+            disabled={busy}
+            className="rounded-lg border border-line bg-surface2 px-2.5 py-1.5 text-sm text-ink outline-none focus:border-emerald/60"
+            aria-label="Correct class"
+          >
+            {classes.map((c) => (
+              <option key={c} value={c} className="capitalize">
+                {c}
+              </option>
+            ))}
+          </select>
+          <button className="btn-primary px-3 py-1.5 text-xs" disabled={busy} onClick={() => submit(false)}>
+            {busy ? 'Saving…' : 'Verify label'}
+          </button>
+          <button
+            className="btn-ghost px-3 py-1.5 text-xs"
+            disabled={busy}
+            onClick={() => submit(true)}
+            title="The prediction was actually right; it was just uncertain."
+          >
+            Prediction was correct
+          </button>
+          <Link className="btn-ghost px-3 py-1.5 text-xs" to={`/scan?id=${scan.id}`}>
+            Open analysis
+          </Link>
+        </div>
+
+        {error && <p className="mt-2 font-mono text-xs text-rose">{error}</p>}
+      </div>
+    </Card>
+  )
 }
 
 export default function Review() {
-  const [queue, setQueue] = useState<Scan[]>([])
-  const [corrections, setCorrections] = useState<Correction[]>([])
+  const [tab, setTab] = useState<Tab>('queue')
+  const [queue, setQueue] = useState<Scan[] | null>(null)
+  const [corrections, setCorrections] = useState<Correction[] | null>(null)
   const [classes, setClasses] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [actingId, setActingId] = useState<string | null>(null)
-  const [rejectId, setRejectId] = useState<string | null>(null)
-  const [chosenClass, setChosenClass] = useState('')
-  const [notice, setNotice] = useState<string | null>(null)
+  const [activity, setActivity] = useState<{ scans: number; corrections: number; low_confidence: number } | null>(null)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [threshold, setThreshold] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [q, c, cl] = await Promise.all([api.reviewQueue(100), api.corrections(50), api.classes()])
+      const [q, c, a] = await Promise.all([api.reviewQueue(100), api.corrections(200), api.activity()])
       setQueue(q.items)
       setCorrections(c.corrections)
-      setClasses(cl.classes.map((x) => x.id))
-      setError(null)
+      setActivity({ scans: a.scans, corrections: a.corrections, low_confidence: a.low_confidence })
+      setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load review queue')
-    } finally {
-      setLoading(false)
+      setError(e instanceof Error ? e.message : String(e))
     }
   }, [])
 
   useEffect(() => {
-    void load()
+    load()
+    api
+      .classes()
+      .then((r) => setClasses(r.classes.map((c) => c.id)))
+      .catch(() => setClasses([]))
+    api
+      .robotStatus()
+      .then((r) => setThreshold(r.confidence_threshold))
+      .catch(() => setThreshold(null))
   }, [load])
 
-  const submit = async (id: string, correct: boolean, correctClass?: string) => {
-    setActingId(id)
-    setError(null)
-    setNotice(null)
-    try {
-      const r = await api.feedback(id, correct, correctClass)
-      setNotice(
-        r.was_correct
-          ? `Scan ${id.slice(0, 8)} verified as correct — removed from the queue.`
-          : `Correction recorded: ${r.verified_class}. The scan left the queue and joined the retraining candidates.`,
-      )
-      setRejectId(null)
-      setChosenClass('')
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to submit feedback')
-    } finally {
-      setActingId(null)
-    }
-  }
-
-  if (loading) return <Loading label="Loading review queue" />
-
-  const lowConf = queue.filter((s) => s.state === 'low').length
-  const rejected = queue.filter((s) => s.was_correct === 0).length
+  const verifiedCount = corrections?.filter((c) => c.verified).length ?? 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SectionTitle
-        title="Review Queue"
-        sub="Low-confidence and human-rejected scans waiting for a verified label. Verified labels feed the next retraining run."
-        right={<Badge tone={queue.length ? 'warn' : 'good'}>{queue.length} pending</Badge>}
+        title="Review queue"
+        sub="Predictions the model was unsure about, plus every correction users submitted. Verified labels here are the training candidates for the next run."
+        right={
+          <div className="flex gap-1.5">
+            {(['queue', 'verified'] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={cx(
+                  'rounded-full border px-3 py-1.5 text-xs capitalize transition',
+                  tab === t
+                    ? 'border-emerald/50 bg-emerald/12 text-emerald'
+                    : 'border-line bg-surface2 text-muted hover:text-ink',
+                )}
+              >
+                {t === 'queue' ? 'Needs review' : 'Verified labels'}
+              </button>
+            ))}
+          </div>
+        }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          ['Awaiting review', String(queue.length)],
-          ['Low confidence', String(lowConf)],
-          ['Human-rejected', String(rejected)],
-        ].map(([k, v]) => (
-          <Card key={k} className="!p-4">
-            <Kicker>{k}</Kicker>
-            <div className="mt-2 font-mono text-xl font-semibold tabular-nums text-ink">{v}</div>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Awaiting review" value={queue?.length ?? '—'} sub="Low confidence or rejected" />
+        <Stat label="Corrections logged" value={corrections?.length ?? '—'} sub="From users and reviewers" />
+        <Stat label="Verified labels" value={verifiedCount} sub="Confirmed by a reviewer here" />
+        <Stat
+          label="Low-confidence rate"
+          value={
+            activity && activity.scans > 0 ? pct(activity.low_confidence / activity.scans, 1) : '—'
+          }
+          sub={`${activity?.low_confidence ?? 0} of ${activity?.scans ?? 0} scans`}
+        />
       </div>
 
-      {error && <ErrorState message={error} />}
-      {notice && (
-        <Card className="border-emerald/30 bg-emerald/[0.06]">
-          <p className="text-xs text-ink">{notice}</p>
+      {error && <ErrorState message={error} onRetry={load} />}
+      {note && (
+        <Card className="border-emerald/30 bg-emerald/5">
+          <p className="text-sm text-ink">{note}</p>
         </Card>
       )}
 
-      {!queue.length && !error && (
-        <Empty
-          title="The review queue is empty"
-          hint="Every scan so far is either high-confidence and verified, or already corrected. New low-confidence scans appear here automatically."
-          icon="✓"
-        />
+      {tab === 'queue' && (
+        <>
+          {queue === null && !error ? (
+            <Loading label="Loading review queue" />
+          ) : queue && queue.length === 0 ? (
+            <Empty
+              title="Nothing is waiting for review"
+              hint="Scans below the confidence gate, and any prediction a user marks wrong, appear here automatically."
+              icon="✓"
+            />
+          ) : (
+            <div className="space-y-3">
+              {queue?.map((s) => (
+                <QueueItem
+                  key={s.id}
+                  scan={s}
+                  classes={classes}
+                  onDone={() => {
+                    setNote(`Label for ${s.predicted_class} scan saved. It is now a retraining candidate.`)
+                    load()
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      <div className="space-y-3">
-        {queue.map((s) => {
-          const thumb = thumbUrl(s)
-          const rejecting = rejectId === s.id
-          return (
-            <Card key={s.id} className="!p-4">
-              <div className="flex flex-wrap items-start gap-4">
-                {thumb ? (
-                  <img
-                    src={thumb}
-                    alt={s.predicted_class}
-                    loading="lazy"
-                    className="h-16 w-16 shrink-0 rounded-xl border border-line object-cover"
-                  />
-                ) : (
-                  <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-line bg-surface2 font-mono text-lg text-muted">
-                    {s.predicted_class.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
+      {tab === 'verified' && (
+        <Card>
+          <Kicker>Correction log</Kicker>
+          {corrections === null && !error ? (
+            <Loading label="Loading corrections" />
+          ) : corrections && corrections.length === 0 ? (
+            <Empty
+              title="No corrections yet"
+              hint="Use the feedback controls under any scan result, or verify a label from the review queue."
+              icon="◇"
+            />
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                    <th className="py-2 pr-3 font-medium">When</th>
+                    <th className="py-2 pr-3 font-medium">Predicted</th>
+                    <th className="py-2 pr-3 font-medium">Corrected to</th>
+                    <th className="py-2 pr-3 font-medium">Source</th>
+                    <th className="py-2 pr-3 font-medium">Scan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {corrections?.map((c) => (
+                    <tr key={c.id} className="border-b border-line/50 last:border-0">
+                      <td className="py-2.5 pr-3 text-xs text-muted">{relTime(c.created_at)}</td>
+                      <td className="py-2.5 pr-3">
+                        <span className="capitalize text-rose">{c.predicted_class}</span>
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <span className="capitalize text-emerald">{c.correct_class}</span>
+                        {c.predicted_class === c.correct_class && (
+                          <span className="ml-2 text-xs text-muted">confirmed correct</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <Badge tone={c.verified ? 'good' : 'neutral'}>{c.source}</Badge>
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        {c.scan_id ? (
+                          <Link className="text-xs text-emerald hover:underline" to={`/scan?id=${c.scan_id}`}>
+                            open
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold capitalize text-ink">{s.predicted_class}</span>
-                    <Badge tone={s.state === 'low' ? 'bad' : 'warn'}>{pct(s.confidence, 1)}</Badge>
-                    {s.was_correct === 0 && <Badge tone="bad">rejected</Badge>}
-                    <span className="chip">{s.source}</span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 font-mono text-[11px] text-muted">
-                    <span title={s.created_at}>{relTime(s.created_at)} · {clockTime(s.created_at)}</span>
-                    {s.target_bin && <span>→ {s.target_bin}</span>}
-                    {s.model_version && <span>{s.model_version}</span>}
-                    <Link to={`/scan?id=${s.id}`} className="text-emerald hover:underline">
-                      open full analysis →
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    className="btn-ghost !px-3 !py-1.5 text-xs"
-                    disabled={actingId === s.id}
-                    onClick={() => void submit(s.id, true)}
-                  >
-                    {actingId === s.id ? '…' : '✓ Correct'}
-                  </button>
-                  <button
-                    className={cx(
-                      'btn !px-3 !py-1.5 text-xs',
-                      rejecting
-                        ? 'border-rose/50 bg-rose/10 text-ink'
-                        : 'border-line bg-surface/60 text-muted hover:border-rose/50 hover:text-ink',
-                    )}
-                    disabled={actingId === s.id}
-                    onClick={() => {
-                      setRejectId(rejecting ? null : s.id)
-                      setChosenClass('')
-                    }}
-                  >
-                    ✗ Wrong
-                  </button>
-                </div>
-              </div>
-
-              {rejecting && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                  <span className="text-xs text-muted">What is it actually?</span>
-                  <select
-                    value={chosenClass}
-                    onChange={(e) => setChosenClass(e.target.value)}
-                    className="input !w-auto !py-1.5 text-xs"
-                  >
-                    <option value="">Select class…</option>
-                    {classes.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn-primary !px-3 !py-1.5 text-xs"
-                    disabled={!chosenClass || actingId === s.id}
-                    onClick={() => void submit(s.id, false, chosenClass)}
-                  >
-                    Record correction
-                  </button>
-                  <button
-                    className="btn-ghost !px-3 !py-1.5 text-xs"
-                    onClick={() => {
-                      setRejectId(null)
-                      setChosenClass('')
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* Corrections log */}
       <Card>
-        <Kicker>Correction log — last {corrections.length}</Kicker>
-        {!corrections.length ? (
-          <p className="mt-3 text-xs text-muted">No corrections recorded yet.</p>
-        ) : (
-          <div className="mt-3 divide-y divide-line/60">
-            {corrections.map((c) => (
-              <div key={c.id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
-                <span className="font-mono text-[11px] text-muted">{relTime(c.created_at)}</span>
-                <span className="capitalize text-muted line-through">{c.predicted_class}</span>
-                <span className="text-emerald">→</span>
-                <span className="font-semibold capitalize text-ink">{c.correct_class}</span>
-                {c.scan_id && (
-                  <Link to={`/scan?id=${c.scan_id}`} className="font-mono text-[11px] text-emerald hover:underline">
-                    scan {c.scan_id.slice(0, 8)}
-                  </Link>
-                )}
-                <span className="ml-auto chip">{c.source}</span>
-              </div>
-            ))}
+        <Kicker>How this feeds back into the model</Kicker>
+        <div className="mt-3 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2 text-sm text-muted">
+            <p>
+              1. A prediction below the {threshold != null ? pct(threshold, 0) : '—'} gate — or one a user rejects —
+              lands in this queue instead of being acted on.
+            </p>
+            <p>2. A reviewer assigns the correct class. The label is stored against the original image.</p>
+            <p>
+              3. Verified labels are exported as training candidates and folded into the next training run, which is
+              started manually from the Training page so the dataset change is deliberate.
+            </p>
+            <p>
+              4. The new checkpoint is re-evaluated on the untouched test split, so improvement is measured rather than
+              assumed.
+            </p>
           </div>
-        )}
+          <div>
+            <MetricRow label="Loop status" value="labels collected, retraining manual" />
+            <MetricRow label="Queue source" value="confidence gate + user feedback" />
+            <MetricRow label="Storage" value="SQLite (scans, corrections)" />
+            <MetricRow label="Evaluation split" value="test — never retrained on" />
+          </div>
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          Nothing here retrains the model on its own. Closing the loop means exporting these labels and starting a run
+          you can inspect — an automatic retrain would silently change what the robot does.
+        </p>
       </Card>
     </div>
   )

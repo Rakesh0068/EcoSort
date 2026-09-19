@@ -182,11 +182,20 @@ def list_corrections(limit: int = 100) -> list[dict]:
 
 
 def review_queue(limit: int = 100) -> list[dict]:
-    """Low-confidence or user-rejected scans awaiting a verified label."""
+    """Low-confidence or user-rejected scans that still lack a verified label.
+
+    A scan leaves the queue once the review flow itself has recorded a label
+    for it (corrections.source = 'review'); user feedback alone only puts it
+    here.
+    """
     with db() as conn:
         rows = conn.execute(
-            """SELECT * FROM scans
-               WHERE state = 'low' OR was_correct = 0
+            """SELECT * FROM scans s
+               WHERE (state = 'low' OR was_correct = 0)
+                 AND NOT EXISTS (
+                   SELECT 1 FROM corrections c
+                   WHERE c.scan_id = s.id AND c.source = 'review'
+                 )
                ORDER BY created_at DESC LIMIT ?""",
             (limit,),
         ).fetchall()

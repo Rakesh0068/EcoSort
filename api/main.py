@@ -250,6 +250,22 @@ def scan_explain(scan_id: str) -> dict:
     return result
 
 
+@app.get("/api/scans/{scan_id}/image")
+def scan_image(scan_id: str) -> FileResponse:
+    """Serve the image stored for a scan. The path is read from the database
+    rather than accepted from the client, so it can only ever be a file this
+    server wrote during a prediction."""
+    row = db.get_scan(scan_id)
+    if not row:
+        raise HTTPException(404, "scan not found")
+
+    image_path = row.get("image_path")
+    if not image_path or not Path(image_path).is_file():
+        raise HTTPException(404, "source image for this scan is no longer available")
+
+    return FileResponse(image_path)
+
+
 class Feedback(BaseModel):
     correct: bool
     correct_class: Optional[str] = None
