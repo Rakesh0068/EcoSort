@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api import db
 from api.robot import ROBOT, sample_heldout_image
@@ -623,7 +624,19 @@ def api_index() -> dict:
 
 
 if WEB_DIST.is_dir():
-    app.mount("/", StaticFiles(directory=str(WEB_DIST), html=True), name="web")
+
+    class SPAStaticFiles(StaticFiles):
+        """Serve the SPA bundle with index.html as the fallback for client-side routes."""
+
+        async def get_response(self, path: str, scope):
+            try:
+                return await super().get_response(path, scope)
+            except StarletteHTTPException as exc:
+                if exc.status_code == 404:
+                    return await super().get_response("index.html", scope)
+                raise
+
+    app.mount("/", SPAStaticFiles(directory=str(WEB_DIST), html=True), name="web")
 else:
 
     @app.get("/")
