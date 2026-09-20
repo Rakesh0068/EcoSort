@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { api, type Evaluation, type MisclassifiedExample } from '../api'
+import { api, assetUrl, type Evaluation, type MisclassifiedExample } from '../api'
 import {
   Badge,
   Card,
@@ -343,7 +343,7 @@ export default function EvaluationPage() {
                   {examples.map((ex) => (
                     <figure key={ex.path} className="overflow-hidden rounded-xl border border-line bg-surface2">
                       <img
-                        src={ex.url}
+                        src={assetUrl(ex.url)}
                         alt={`${ex.true_class} predicted as ${ex.predicted_class}`}
                         loading="lazy"
                         className="aspect-square w-full object-cover"
@@ -376,6 +376,22 @@ export default function EvaluationPage() {
           <MetricRow label="Below threshold" value={String(ev.confidence_distribution.below_threshold)} />
           <MetricRow label="Total" value={String(ev.num_samples)} />
         </div>
+      </Card>
+
+      <Card>
+        <Kicker>Evaluation metadata</Kicker>
+        <div className="mt-3">
+          <MetricRow label="Evaluation" value={`${ev.run_id}_${ev.weights.replace('.pt', '')}`} />
+          <MetricRow label="Run" value={ev.run_id} />
+          <MetricRow label="Checkpoint" value={<span className="break-all">{ev.checkpoint}</span>} />
+          <MetricRow label="Test samples" value={String(ev.num_samples)} />
+          <MetricRow label="Split" value={ev.split} />
+          <MetricRow label="Generated" value={new Date(ev.generated_at).toLocaleString()} />
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          Measured on the held-out EcoSort test set — images the model never trained on. For the dataset version
+          behind this run, see Research → Models.
+        </p>
       </Card>
     </div>
   )

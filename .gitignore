@@ -10,6 +10,7 @@ artifacts/runs/
 artifacts/metrics/
 artifacts/splits/
 artifacts/uploads/
+artifacts/imports/
 *.h5
 *.keras
 *.pt
@@ -35,6 +36,9 @@ npm-debug.log*
 .DS_Store
 .vscode/
 .idea/
+.pytest_cache/
+__pycache__/
+tests/.compiled/
 
 # DB
 *.db

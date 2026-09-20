@@ -176,7 +176,23 @@ def main() -> None:
         "classes": config.CLASSES,
         "train_samples": len(train_ds),
         "val_samples": len(val_ds),
+        "optimizer": "adamw",
+        "augmentation": {
+            "enabled": True,
+            "counted_as_source_images": False,
+            "transforms": "random-resized-crop, hflip, rotation, color-jitter, random-erasing",
+        },
     }
+    try:
+        from . import dataset_registry as _reg
+
+        _stats = _reg.current_stats()
+        _versions = _reg.load_versions()
+        run_meta["dataset_version"] = _versions[-1].get("version") if _versions else None
+        run_meta["dataset_verified_images"] = int(_stats.get("total_unique", 0)) if _stats else None
+        run_meta["dataset_target"] = _reg.TARGET_TOTAL
+    except Exception:
+        run_meta["dataset_version"] = None
 
     for epoch in range(start_epoch, total_epochs):
         phase = "head" if epoch < args.epochs_head else "finetune"
@@ -278,6 +294,10 @@ def main() -> None:
                 "device": str(DEVICE),
                 "architecture": "efficientnet_b0",
                 "pretrained": "IMAGENET1K_V1",
+                "optimizer": "adamw",
+                "augmentation": "random-crop/hflip/rotate/jitter/erasing (train-time only, not counted as source images)",
+                "dataset_version": run_meta.get("dataset_version"),
+                "dataset_verified_images": run_meta.get("dataset_verified_images"),
             },
         }
         torch.save(payload, run_dir / "last.pt")

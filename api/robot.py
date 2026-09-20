@@ -17,22 +17,32 @@ from pathlib import Path
 from ml import config
 
 VALID_STATES = (
+    "IDLE",
     "READY",
     "SCANNING",
     "CLASSIFYING",
     "OBJECT_DETECTED",
+    "DECISION_READY",
+    "MOVING",
+    "PICKING",
     "SORTING",
+    "RELEASING",
     "COMPLETED",
     "LOW_CONFIDENCE",
     "ERROR",
     "EMERGENCY_STOP",
 )
 
+# Motion phases the simulated arm performs after a SORT decision. These are
+# animation stages, not hardware feedback - no physical arm is attached.
+SIMULATED_MOTION_PHASES = ("MOVING", "PICKING", "RELEASING", "COMPLETED")
+
 
 class RobotController:
     def __init__(self):
         self.state = "READY"
         self.emergency = False
+        self.paused = False
         self.mode = "simulation"
         self.current: dict | None = None
         self.started_at = time.time()
@@ -65,16 +75,71 @@ class RobotController:
         self.set_state("READY")
         return self.status()
 
+    def sync_config(self) -> None:
+        """Re-read the persisted bin map (thresholds are read live from config)."""
+        self.bin_map = dict(config.BIN_MAP)
+
+    def pause(self, paused: bool = True) -> dict:
+        self.paused = paused
+        if paused and not self.emergency:
+            self.set_state("IDLE")
+        elif not paused and self.state == "IDLE":
+            self.set_state("READY")
+        return self.status()
+
+    def capabilities(self) -> dict:
+        """What this interface can honestly claim to do today."""
+        return {
+            "classification": {
+                "supported": True,
+                "model": "efficientnet_b0",
+                "detail": "whole-image classifier; returns class, confidence and top-k probabilities",
+            },
+            "object_detection": {
+                "supported": False,
+                "detail": "no detector is trained - bounding boxes are not available",
+            },
+            "position_estimate": {
+                "supported": True,
+                "method": "gradcam_activation_centroid",
+                "detail": "coarse attention-weighted centroid from the classifier, not a detection box",
+            },
+            "explainability": {"supported": True, "method": "gradcam"},
+            "confidence_gating": {
+                "supported": True,
+                "threshold": config.CONFIDENCE_THRESHOLD,
+                "margin_threshold": config.MARGIN_THRESHOLD,
+            },
+            "hardware": {
+                "supported": False,
+                "mode": self.mode,
+                "detail": "no physical robot is connected; commands are logged and simulated",
+            },
+            "ros2": {"supported": False, "detail": "interface is HTTP/JSON; a ROS2 bridge can wrap it"},
+            "multi_object": {
+                "supported": False,
+                "detail": "multi-object detection planned - the classifier sees one whole image; "
+                          "per-object boxes need a detector that is not trained yet",
+            },
+        }
+
     def health(self) -> dict:
         model_loaded = bool(getattr(self, "_model_loaded", False))
         return {
-            "camera": {"status": "online" if model_loaded else "degraded", "mode": self.mode},
+            "camera": {
+                "status": "browser_side",
+                "mode": self.mode,
+                "detail": "no camera is attached to the controller; capture happens in the browser",
+            },
             "ml_model": {"status": "loaded" if model_loaded else "not_loaded"},
             "inference_api": {"status": "online" if model_loaded else "offline"},
             "motor_controller": {
                 "status": "simulated" if self.mode == "simulation" else ("online" if not self.emergency else "halted")
             },
-            "object_sensor": {"status": "online" if model_loaded else "offline"},
+            "object_sensor": {
+                "status": "not_installed",
+                "detail": "no detector is trained - the classifier reports no bounding boxes",
+            },
             "emergency_stop": {"status": "engaged" if self.emergency else "ready"},
         }
 
@@ -87,6 +152,9 @@ class RobotController:
         return {
             "state": self.state,
             "mode": self.mode,
+            "interface": "SIMULATION",
+            "hardware_connected": False,
+            "paused": self.paused,
             "emergency_stop": self.emergency,
             "uptime_seconds": round(time.time() - self.started_at, 1),
             "current_object": self.current,
@@ -103,6 +171,7 @@ class RobotController:
             "bin_map": self.bin_map,
             "bins": sorted(set(self.bin_map.values())),
             "confidence_threshold": config.CONFIDENCE_THRESHOLD,
+            "margin_threshold": config.MARGIN_THRESHOLD,
             "health": self.health(),
         }
 
@@ -178,14 +247,90 @@ class RobotController:
         return record
 
     def set_bin_map(self, mapping: dict) -> dict:
-        unknown = [k for k in mapping if k not in config.CLASSES]
-        if unknown:
-            raise ValueError(f"unknown classes in bin map: {unknown}")
-        self.bin_map.update(mapping)
+        from . import runtime_config
+
+        runtime_config.save_bin_map(mapping)
+        self.bin_map = dict(config.BIN_MAP)
         return self.bin_map
 
 
 ROBOT = RobotController()
+
+
+# ------------------------------------------------------- hardware abstraction
+
+
+class RobotAdapter:
+    """Hardware interface. Every method must report what it really did."""
+
+    name = "base"
+
+    def connect(self) -> dict:
+        raise NotImplementedError
+
+    def disconnect(self) -> dict:
+        raise NotImplementedError
+
+    def get_status(self) -> dict:
+        raise NotImplementedError
+
+    def send_command(self, command: dict) -> dict:
+        raise NotImplementedError
+
+    def stop(self) -> dict:
+        raise NotImplementedError
+
+    def get_telemetry(self) -> dict:
+        raise NotImplementedError
+
+
+class SimulationRobotAdapter(RobotAdapter):
+    """Virtual arm: accepts SORT/HOLD commands, animates nothing physical,
+    logs everything. All responses carry simulation=true."""
+
+    name = "simulation"
+
+    def __init__(self, controller: RobotController):
+        self._c = controller
+        self._connected = False
+
+    def connect(self) -> dict:
+        self._connected = True
+        return {"connected": True, "simulation": True, "adapter": self.name,
+                "note": "virtual connection - no hardware involved"}
+
+    def disconnect(self) -> dict:
+        self._connected = False
+        return {"connected": False, "simulation": True, "adapter": self.name}
+
+    def get_status(self) -> dict:
+        return {"connected": self._connected, "simulation": True,
+                "adapter": self.name, **self._c.status()}
+
+    def send_command(self, command: dict) -> dict:
+        if not self._connected:
+            return {"accepted": False, "simulation": True,
+                    "reason": "adapter not connected - call connect() first"}
+        if self._c.emergency:
+            return {"accepted": False, "simulation": True,
+                    "reason": "emergency stop engaged"}
+        db_log = command.get("action") in ("SORT", "HOLD_FOR_REVIEW", "BLOCKED_ESTOP", "NO_BIN_MAPPED")
+        return {"accepted": db_log, "simulation": True, "actuated": False,
+                "command": command,
+                "note": "logged only - no physical arm exists to move"}
+
+    def stop(self) -> dict:
+        self._c.emergency_stop(True)
+        return {"stopped": True, "simulation": True, "state": self._c.state}
+
+    def get_telemetry(self) -> dict:
+        return {"simulation": True, **self._c.status()["telemetry"]}
+
+
+# Future physical backends implement RobotAdapter against real drivers:
+# ROS2RobotAdapter, ArduinoRobotAdapter, RaspberryPiRobotAdapter.
+# None exist yet - claiming otherwise would be fabrication.
+ADAPTER = SimulationRobotAdapter(ROBOT)
 
 
 def sample_heldout_image(rng: random.Random | None = None) -> Path | None:

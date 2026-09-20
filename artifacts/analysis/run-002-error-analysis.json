@@ -1,0 +1,1105 @@
+{
+  "evaluation": "evaluation_run-002_best.json",
+  "run_id": "run-002",
+  "weights": "best",
+  "model": "efficientnet_b0",
+  "dataset": "EcoSort Dataset v3 (from serving checkpoint metadata)",
+  "test_count": 3478,
+  "overall": {
+    "accuracy": 0.9726854514088557,
+    "macro_f1": 0.9681497681134046,
+    "macro_precision": 0.9660762328401462,
+    "macro_recall": 0.9706288319972144
+  },
+  "class_table": [
+    {
+      "class": "battery",
+      "support": 140,
+      "tp": 139,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.99286,
+      "recall": 0.99286,
+      "f1": 0.99286,
+      "predicted_as": 140
+    },
+    {
+      "class": "biological",
+      "support": 226,
+      "tp": 224,
+      "fp": 1,
+      "fn": 2,
+      "precision": 0.99556,
+      "recall": 0.99115,
+      "f1": 0.99335,
+      "predicted_as": 225
+    },
+    {
+      "class": "cardboard",
+      "support": 280,
+      "tp": 267,
+      "fp": 11,
+      "fn": 13,
+      "precision": 0.96043,
+      "recall": 0.95357,
+      "f1": 0.95699,
+      "predicted_as": 278
+    },
+    {
+      "class": "clothes",
+      "support": 936,
+      "tp": 923,
+      "fp": 4,
+      "fn": 13,
+      "precision": 0.99569,
+      "recall": 0.98611,
+      "f1": 0.99087,
+      "predicted_as": 927
+    },
+    {
+      "class": "glass",
+      "support": 435,
+      "tp": 427,
+      "fp": 12,
+      "fn": 8,
+      "precision": 0.97267,
+      "recall": 0.98161,
+      "f1": 0.97712,
+      "predicted_as": 439
+    },
+    {
+      "class": "metal",
+      "support": 222,
+      "tp": 218,
+      "fp": 16,
+      "fn": 4,
+      "precision": 0.93162,
+      "recall": 0.98198,
+      "f1": 0.95614,
+      "predicted_as": 234
+    },
+    {
+      "class": "paper",
+      "support": 332,
+      "tp": 309,
+      "fp": 12,
+      "fn": 23,
+      "precision": 0.96262,
+      "recall": 0.93072,
+      "f1": 0.9464,
+      "predicted_as": 321
+    },
+    {
+      "class": "plastic",
+      "support": 349,
+      "tp": 328,
+      "fp": 9,
+      "fn": 21,
+      "precision": 0.97329,
+      "recall": 0.93983,
+      "f1": 0.95627,
+      "predicted_as": 337
+    },
+    {
+      "class": "shoes",
+      "support": 399,
+      "tp": 396,
+      "fp": 14,
+      "fn": 3,
+      "precision": 0.96585,
+      "recall": 0.99248,
+      "f1": 0.97899,
+      "predicted_as": 410
+    },
+    {
+      "class": "trash",
+      "support": 159,
+      "tp": 152,
+      "fp": 15,
+      "fn": 7,
+      "precision": 0.91018,
+      "recall": 0.95597,
+      "f1": 0.93252,
+      "predicted_as": 167
+    }
+  ],
+  "confusion_pairs": [
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "count": 9,
+      "pct_of_true": 0.96
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "count": 8,
+      "pct_of_true": 2.41
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "count": 7,
+      "pct_of_true": 2.5
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "metal",
+      "count": 5,
+      "pct_of_true": 1.51
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "glass",
+      "count": 5,
+      "pct_of_true": 1.43
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "trash",
+      "count": 5,
+      "pct_of_true": 1.43
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "trash",
+      "count": 4,
+      "pct_of_true": 1.2
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "metal",
+      "count": 4,
+      "pct_of_true": 1.15
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "paper",
+      "count": 3,
+      "pct_of_true": 0.32
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "metal",
+      "count": 3,
+      "pct_of_true": 0.69
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "trash",
+      "count": 3,
+      "pct_of_true": 0.69
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "plastic",
+      "count": 3,
+      "pct_of_true": 0.9
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "clothes",
+      "count": 3,
+      "pct_of_true": 0.86
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "plastic",
+      "count": 3,
+      "pct_of_true": 1.89
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "shoes",
+      "count": 2,
+      "pct_of_true": 0.71
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "glass",
+      "count": 2,
+      "pct_of_true": 0.6
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "paper",
+      "count": 2,
+      "pct_of_true": 0.57
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "glass",
+      "count": 2,
+      "pct_of_true": 1.26
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "metal",
+      "count": 2,
+      "pct_of_true": 1.26
+    },
+    {
+      "true_class": "battery",
+      "predicted_class": "metal",
+      "count": 1,
+      "pct_of_true": 0.71
+    },
+    {
+      "true_class": "biological",
+      "predicted_class": "metal",
+      "count": 1,
+      "pct_of_true": 0.44
+    },
+    {
+      "true_class": "biological",
+      "predicted_class": "trash",
+      "count": 1,
+      "pct_of_true": 0.44
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "battery",
+      "count": 1,
+      "pct_of_true": 0.36
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "glass",
+      "count": 1,
+      "pct_of_true": 0.36
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "plastic",
+      "count": 1,
+      "pct_of_true": 0.36
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "trash",
+      "count": 1,
+      "pct_of_true": 0.36
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "glass",
+      "count": 1,
+      "pct_of_true": 0.11
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "plastic",
+      "count": 1,
+      "pct_of_true": 0.23
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "shoes",
+      "count": 1,
+      "pct_of_true": 0.23
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "cardboard",
+      "count": 1,
+      "pct_of_true": 0.45
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "glass",
+      "count": 1,
+      "pct_of_true": 0.45
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "plastic",
+      "count": 1,
+      "pct_of_true": 0.45
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "trash",
+      "count": 1,
+      "pct_of_true": 0.45
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "shoes",
+      "count": 1,
+      "pct_of_true": 0.3
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "cardboard",
+      "count": 1,
+      "pct_of_true": 0.29
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "shoes",
+      "count": 1,
+      "pct_of_true": 0.29
+    },
+    {
+      "true_class": "shoes",
+      "predicted_class": "biological",
+      "count": 1,
+      "pct_of_true": 0.25
+    },
+    {
+      "true_class": "shoes",
+      "predicted_class": "cardboard",
+      "count": 1,
+      "pct_of_true": 0.25
+    },
+    {
+      "true_class": "shoes",
+      "predicted_class": "clothes",
+      "count": 1,
+      "pct_of_true": 0.25
+    }
+  ],
+  "high_confidence_errors": [
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "confidence": 0.96522,
+      "true_confidence": 0.00321,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_e40cba01330e.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "confidence": 0.95311,
+      "true_confidence": 0.00853,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_4e6e760fdbac.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "glass",
+      "confidence": 0.94841,
+      "true_confidence": 0.01617,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_951.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "confidence": 0.94755,
+      "true_confidence": 0.0116,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_fb96b76078b8.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "glass",
+      "confidence": 0.94444,
+      "true_confidence": 0.02842,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\metal\\Garbage-YOLO-khoaliamle_450b4316a71c.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "biological",
+      "predicted_class": "trash",
+      "confidence": 0.94185,
+      "true_confidence": 0.01337,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\biological\\Garbage-YOLO-khoaliamle_e05fcb1cdd6d.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "confidence": 0.93855,
+      "true_confidence": 0.0108,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_a85fa6880ebc.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "paper",
+      "confidence": 0.92278,
+      "true_confidence": 0.06158,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_e983dda3b7dd.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "trash",
+      "confidence": 0.91797,
+      "true_confidence": 0.04545,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\metal\\metal_367.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "confidence": 0.91793,
+      "true_confidence": 0.01916,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_45909dba99c3.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "plastic",
+      "confidence": 0.91086,
+      "true_confidence": 0.03923,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\Garbage-YOLO-khoaliamle_9c224cf015ab.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "metal",
+      "confidence": 0.90439,
+      "true_confidence": 0.00231,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_1101.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "trash",
+      "confidence": 0.89926,
+      "true_confidence": 0.01759,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_984.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "trash",
+      "confidence": 0.89442,
+      "true_confidence": 0.01076,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_351fa2dde853.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "confidence": 0.88489,
+      "true_confidence": 0.02261,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_621dbb341bf4.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "plastic",
+      "confidence": 0.88284,
+      "true_confidence": 0.03455,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\Garbage-YOLO-khoaliamle_fde20dfe63bd.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "confidence": 0.87163,
+      "true_confidence": 0.01186,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_171.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "trash",
+      "confidence": 0.85446,
+      "true_confidence": 0.00584,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_c4c14b758af7.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "metal",
+      "confidence": 0.84044,
+      "true_confidence": 0.0038,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_1001.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "trash",
+      "confidence": 0.83183,
+      "true_confidence": 0.08368,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_05642c07edb0.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "metal",
+      "confidence": 0.82875,
+      "true_confidence": 0.13315,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\glass_1350.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "trash",
+      "confidence": 0.82078,
+      "true_confidence": 0.00404,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\Garbage-YOLO-khoaliamle_eaad9f320e47.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "metal",
+      "confidence": 0.81465,
+      "true_confidence": 0.02214,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_173.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "confidence": 0.81201,
+      "true_confidence": 0.12452,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_b1c332c0893f.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "metal",
+      "confidence": 0.80675,
+      "true_confidence": 0.00806,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_1584.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "confidence": 0.79707,
+      "true_confidence": 0.15447,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_158941cf13b1.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "metal",
+      "confidence": 0.79115,
+      "true_confidence": 0.04517,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\glass_670.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "metal",
+      "confidence": 0.77917,
+      "true_confidence": 0.03128,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_1096.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "confidence": 0.76152,
+      "true_confidence": 0.04974,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\cardboard_212.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "glass",
+      "confidence": 0.74768,
+      "true_confidence": 0.15338,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_556.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "glass",
+      "confidence": 0.74349,
+      "true_confidence": 0.00745,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\Garbage-YOLO-khoaliamle_8449311b0afc.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "confidence": 0.74028,
+      "true_confidence": 0.16281,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\Garbage-YOLO-khoaliamle_20324fdafc3b.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "metal",
+      "confidence": 0.7352,
+      "true_confidence": 0.14387,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_c04dd9c55482.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "trash",
+      "confidence": 0.72393,
+      "true_confidence": 0.18131,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\glass_1007.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "glass",
+      "confidence": 0.72068,
+      "true_confidence": 0.24328,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\Garbage-YOLO-khoaliamle_fdcfefa1288b.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "clothes",
+      "confidence": 0.70986,
+      "true_confidence": 0.15546,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_343.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "paper",
+      "confidence": 0.70856,
+      "true_confidence": 0.11844,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_692.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "trash",
+      "confidence": 0.70841,
+      "true_confidence": 0.25343,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_cee57dd6d6ca.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "trash",
+      "confidence": 0.68665,
+      "true_confidence": 0.10149,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_22376f8f3f02.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "confidence": 0.68637,
+      "true_confidence": 0.0692,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\cardboard_257.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "cardboard",
+      "confidence": 0.68461,
+      "true_confidence": 0.06787,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_9665c55cd998.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "shoes",
+      "predicted_class": "clothes",
+      "confidence": 0.67861,
+      "true_confidence": 0.24095,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\shoes\\Garbage-YOLO-khoaliamle_dd6fcfad3212.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "shoes",
+      "confidence": 0.67668,
+      "true_confidence": 0.06854,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_45e75090da06.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "metal",
+      "confidence": 0.67184,
+      "true_confidence": 0.26172,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\Garbage-YOLO-khoaliamle_e92a2cf09344.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "shoes",
+      "confidence": 0.66275,
+      "true_confidence": 0.0134,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_05d9720b4bf0.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "metal",
+      "confidence": 0.66228,
+      "true_confidence": 0.23946,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_472.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "confidence": 0.6539,
+      "true_confidence": 0.1118,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_195.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "confidence": 0.63947,
+      "true_confidence": 0.16529,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\Garbage-YOLO-khoaliamle_f976a414aa57.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "shoes",
+      "predicted_class": "biological",
+      "confidence": 0.63738,
+      "true_confidence": 0.19967,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\shoes\\Garbage-YOLO-khoaliamle_e4436484a6a2.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "glass",
+      "confidence": 0.63294,
+      "true_confidence": 0.24701,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_995.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "trash",
+      "confidence": 0.62875,
+      "true_confidence": 0.30358,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\Garbage-YOLO-khoaliamle_d8a92bf51d79.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "glass",
+      "confidence": 0.61834,
+      "true_confidence": 0.30881,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_1fc39cdda0c6.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "trash",
+      "confidence": 0.61641,
+      "true_confidence": 0.11237,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_1480.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "metal",
+      "confidence": 0.61375,
+      "true_confidence": 0.01242,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_200.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "plastic",
+      "confidence": 0.61328,
+      "true_confidence": 0.16508,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_660.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "paper",
+      "confidence": 0.60217,
+      "true_confidence": 0.21991,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_398.jpg",
+      "source": "base-corpus"
+    }
+  ],
+  "low_confidence_errors": [
+    {
+      "true_class": "plastic",
+      "predicted_class": "trash",
+      "confidence": 0.24139,
+      "true_confidence": 0.23131,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_945.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "shoes",
+      "confidence": 0.27465,
+      "true_confidence": 0.08439,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\cardboard_454.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "shoes",
+      "confidence": 0.27635,
+      "true_confidence": 0.11692,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\cardboard_425.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "glass",
+      "confidence": 0.33011,
+      "true_confidence": 0.19053,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_5ed61ffd2042.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "cardboard",
+      "confidence": 0.35547,
+      "true_confidence": 0.16897,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_c6a1e3ec2a2d.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "shoes",
+      "confidence": 0.36078,
+      "true_confidence": 0.29571,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_cdbc9ace1794.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "trash",
+      "confidence": 0.41851,
+      "true_confidence": 0.41037,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\Garbage-YOLO-khoaliamle_9d6849c28d75.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "biological",
+      "predicted_class": "metal",
+      "confidence": 0.44119,
+      "true_confidence": 0.14456,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\biological\\biological_564.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "battery",
+      "confidence": 0.45365,
+      "true_confidence": 0.20421,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\Garbage-YOLO-khoaliamle_1e1834ec5a07.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "paper",
+      "confidence": 0.45633,
+      "true_confidence": 0.14506,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_2a5f5b01202c.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "battery",
+      "predicted_class": "metal",
+      "confidence": 0.48013,
+      "true_confidence": 0.03383,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\battery\\Garbage-YOLO-khoaliamle_b073ae9c9e22.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "glass",
+      "confidence": 0.48079,
+      "true_confidence": 0.34759,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\Garbage-YOLO-khoaliamle_f992aa61a41f.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "glass",
+      "confidence": 0.48918,
+      "true_confidence": 0.44558,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_690b55da504d.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "trash",
+      "confidence": 0.49442,
+      "true_confidence": 0.06442,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_309.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "metal",
+      "confidence": 0.50027,
+      "true_confidence": 0.23041,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\Garbage-YOLO-khoaliamle_8cce9532a9d4.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "clothes",
+      "confidence": 0.5009,
+      "true_confidence": 0.15667,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_222.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "plastic",
+      "confidence": 0.50456,
+      "true_confidence": 0.01361,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\Garbage-YOLO-khoaliamle_ad4e8420fba2.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "confidence": 0.51428,
+      "true_confidence": 0.19931,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\cardboard_1208.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "glass",
+      "confidence": 0.521,
+      "true_confidence": 0.06306,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_05aecada1d15.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "shoes",
+      "predicted_class": "cardboard",
+      "confidence": 0.52105,
+      "true_confidence": 0.32633,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\shoes\\Garbage-YOLO-khoaliamle_cfd979a7151a.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "cardboard",
+      "confidence": 0.52251,
+      "true_confidence": 0.10923,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\metal\\metal_264.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "glass",
+      "confidence": 0.52624,
+      "true_confidence": 0.41036,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_a88d9326d127.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "metal",
+      "predicted_class": "plastic",
+      "confidence": 0.52647,
+      "true_confidence": 0.1151,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\metal\\Garbage-YOLO-khoaliamle_7a4e232aff51.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "clothes",
+      "predicted_class": "paper",
+      "confidence": 0.53712,
+      "true_confidence": 0.1606,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\clothes\\Garbage-YOLO-khoaliamle_3936e6a81145.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "cardboard",
+      "predicted_class": "paper",
+      "confidence": 0.5476,
+      "true_confidence": 0.33175,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\cardboard\\cardboard_1204.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "plastic",
+      "confidence": 0.55044,
+      "true_confidence": 0.01383,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\Garbage-YOLO-khoaliamle_61036dd5ed69.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "metal",
+      "confidence": 0.55163,
+      "true_confidence": 0.13199,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\plastic_1251.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "plastic",
+      "confidence": 0.56066,
+      "true_confidence": 0.02131,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\Garbage-YOLO-khoaliamle_d13b4f831a06.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "trash",
+      "predicted_class": "plastic",
+      "confidence": 0.56605,
+      "true_confidence": 0.16205,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\trash\\trash_324.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "shoes",
+      "confidence": 0.56728,
+      "true_confidence": 0.22227,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\Garbage-YOLO-khoaliamle_5301348ff246.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "plastic",
+      "predicted_class": "clothes",
+      "confidence": 0.57334,
+      "true_confidence": 0.0684,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\plastic\\Garbage-YOLO-khoaliamle_fcd4d0869277.jpg",
+      "source": "Garbage-YOLO-khoaliamle"
+    },
+    {
+      "true_class": "glass",
+      "predicted_class": "metal",
+      "confidence": 0.57571,
+      "true_confidence": 0.36613,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\glass\\glass_1717.jpg",
+      "source": "base-corpus"
+    },
+    {
+      "true_class": "paper",
+      "predicted_class": "plastic",
+      "confidence": 0.57906,
+      "true_confidence": 0.05007,
+      "path": "C:\\Users\\rakes\\Downloads\\archive\\standardized_256\\paper\\paper_1261.jpg",
+      "source": "base-corpus"
+    }
+  ],
+  "sources": {
+    "Garbage-YOLO-khoaliamle": {
+      "test_images": 1939,
+      "stored_misclassified": 52,
+      "observed_error_rate": 0.0268
+    },
+    "base-corpus": {
+      "test_images": 1539,
+      "stored_misclassified": 37,
+      "observed_error_rate": 0.024
+    }
+  },
+  "metadata_availability": {
+    "lighting": "Not available",
+    "background": "Not available",
+    "occlusion": "Not available",
+    "image_quality": "Not available",
+    "single_vs_multiple_object": "Not available",
+    "camera_angle": "Not available",
+    "robot_ready_status": "Not available",
+    "source_dataset": "derived from ingest filename prefix (measured convention)"
+  },
+  "limitations": [
+    "misclassified_examples stores a capped sample per confusion pair, not every error",
+    "source attribution relies on the ingest filename convention, not embedded provenance",
+    "no per-sample lighting/background/occlusion metadata exists in the eval artifact"
+  ]
+}

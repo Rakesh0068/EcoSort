@@ -2,16 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, type PredictionResult } from '../api'
 import { ResultView } from '../components/ResultView'
-import { Badge, Card, ErrorState, Kicker, Loading, SectionTitle, Spinner, StatusDot, cx, ms } from '../components/ui'
 
-type Mode = 'upload' | 'camera' | 'live'
+type Mode = 'photo' | 'camera'
 
-const MAX_BYTES = 12 * 1024 * 1024
 const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp']
+const MAX_BYTES = 12 * 1024 * 1024
 
 export default function Scan() {
   const [params, setParams] = useSearchParams()
-  const [mode, setMode] = useState<Mode>('upload')
+  const [mode, setMode] = useState<Mode>('photo')
   const [classes, setClasses] = useState<string[]>([])
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -20,9 +19,7 @@ export default function Scan() {
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [camError, setCamError] = useState<string | null>(null)
-  const [liveOn, setLiveOn] = useState(false)
-  const [liveStats, setLiveStats] = useState<{ frames: number; avgMs: number } | null>(null)
-  const [storedLoading, setStoredLoading] = useState(false)
+  const [loadingStored, setLoadingStored] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -33,39 +30,28 @@ export default function Scan() {
     api.classes().then((r) => setClasses(r.classes.map((c) => c.id))).catch(() => setClasses([]))
   }, [])
 
-  const clearPreview = useCallback(() => {
+  const acceptFile = useCallback((f: File | undefined | null) => {
+    if (!f) return
+    if (!ACCEPTED.includes(f.type) && !/\.(jpe?g|png|webp|bmp)$/i.test(f.name)) {
+      setError('That file type doesn’t work — please use a PNG, JPG or WEBP photo.')
+      return
+    }
+    if (f.size > MAX_BYTES) {
+      setError(`That photo is ${(f.size / 1048576).toFixed(1)} MB — the limit is 12 MB.`)
+      return
+    }
+    setError(null)
+    setResult(null)
+    setFile(f)
     setPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)
-      return null
+      return URL.createObjectURL(f)
     })
-    setFile(null)
   }, [])
-
-  const acceptFile = useCallback(
-    (f: File | undefined | null) => {
-      if (!f) return
-      if (!ACCEPTED.includes(f.type) && !/\.(jpe?g|png|webp|bmp)$/i.test(f.name)) {
-        setError(`Unsupported file type "${f.type || f.name}". Use PNG, JPG or WEBP.`)
-        return
-      }
-      if (f.size > MAX_BYTES) {
-        setError(`Image is ${(f.size / 1048576).toFixed(1)} MB — the limit is 12 MB.`)
-        return
-      }
-      setError(null)
-      setResult(null)
-      setFile(f)
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev)
-        return URL.createObjectURL(f)
-      })
-    },
-    [],
-  )
 
   const analyze = useCallback(
     async (blob: File | Blob, source: 'upload' | 'camera') => {
-      if (busyRef.current) return
+      if (busyRef.current) return null
       busyRef.current = true
       setBusy(true)
       setError(null)
@@ -73,14 +59,9 @@ export default function Scan() {
         const r = await api.predict(blob, source)
         r.__sourceUrl = preview ?? undefined
         setResult(r)
-        setLiveStats((s) => {
-          const total = r.timings_ms.total_ms
-          const frames = (s?.frames ?? 0) + 1
-          return { frames, avgMs: s ? (s.avgMs * (frames - 1) + total) / frames : total }
-        })
         return r
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'prediction failed')
+        setError(e instanceof Error ? e.message : 'Something went wrong while identifying your waste.')
         return null
       } finally {
         setBusy(false)
@@ -90,27 +71,22 @@ export default function Scan() {
     [preview],
   )
 
-  // ---- stored scan deep-link (?id=...) -----------------------------------
+  // Stored scan deep-link (?id=...)
   useEffect(() => {
     const id = params.get('id')
     if (!id) return
     let alive = true
-    setStoredLoading(true)
+    setLoadingStored(true)
     api
       .scanExplain(id)
-      .then((r) => {
-        if (!alive) return
-        setResult(r)
-        setMode('upload')
-      })
-      .catch((e) => alive && setError(e instanceof Error ? e.message : 'could not load scan'))
-      .finally(() => alive && setStoredLoading(false))
+      .then((r) => alive && (setResult(r), setMode('photo')))
+      .catch((e) => alive && setError(e instanceof Error ? e.message : 'Could not open that scan'))
+      .finally(() => alive && setLoadingStored(false))
     return () => {
       alive = false
     }
   }, [params])
 
-  // ---- camera lifecycle ---------------------------------------------------
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
@@ -133,24 +109,29 @@ export default function Scan() {
       const msg = e instanceof Error ? e.message : String(e)
       setCamError(
         /Permission|NotAllowed/i.test(msg)
-          ? 'Camera permission was denied. Allow access in your browser settings, or use Upload mode.'
-          : `Camera unavailable: ${msg}`,
+          ? 'Camera access was blocked. Allow it in your browser settings — or use a photo instead.'
+          : `Camera isn't available right now (${msg}). Try uploading a photo instead.`,
       )
     }
   }, [])
 
   useEffect(() => {
-    if (mode === 'camera' || mode === 'live') void startCamera()
+    if (mode === 'camera') void startCamera()
     else stopCamera()
     return () => stopCamera()
   }, [mode, startCamera, stopCamera])
 
-  useEffect(() => () => clearPreview(), [clearPreview])
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview)
+    },
+    [preview],
+  )
 
   const captureAndAnalyze = useCallback(async () => {
     const video = videoRef.current
     if (!video || !video.videoWidth) {
-      setError('Camera is not ready yet.')
+      setError('The camera isn’t ready yet — give it a second.')
       return
     }
     const canvas = document.createElement('canvas')
@@ -159,281 +140,153 @@ export default function Scan() {
     canvas.getContext('2d')?.drawImage(video, 0, 0)
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/jpeg', 0.92))
     if (!blob) {
-      setError('Could not capture a frame from the camera.')
+      setError('Could not grab a frame from the camera.')
       return
     }
     await analyze(blob, 'camera')
   }, [analyze])
 
-  // ---- live detection loop ------------------------------------------------
-  useEffect(() => {
-    if (mode !== 'live' || !liveOn) return
-    let cancelled = false
-    let timer: number | undefined
-
-    const tick = async () => {
-      if (cancelled) return
-      if (!busyRef.current) {
-        const video = videoRef.current
-        if (video && video.videoWidth) {
-          const canvas = document.createElement('canvas')
-          canvas.width = video.videoWidth
-          canvas.height = video.videoHeight
-          canvas.getContext('2d')?.drawImage(video, 0, 0)
-          const blob = await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/jpeg', 0.9))
-          if (blob && !cancelled) await analyze(blob, 'camera')
-        }
-      }
-      if (!cancelled) timer = window.setTimeout(tick, 2200)
-    }
-
-    void tick()
-    return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
-    }
-  }, [mode, liveOn, analyze])
-
   const reset = () => {
-    clearPreview()
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(null)
+    setFile(null)
     setResult(null)
     setError(null)
-    setLiveOn(false)
-    setLiveStats(null)
     setParams({}, { replace: true })
   }
 
   return (
-    <div className="space-y-6">
-      <SectionTitle
-        title="Smart Scanner"
-        sub="Upload an image or use your camera. Every result is a real inference on the trained EfficientNetB0 model."
-        right={
-          result ? (
-            <button className="btn-ghost !px-3 !py-2 text-xs" onClick={reset}>
-              Clear result
+    <div className="container-site max-w-4xl py-10">
+      <div className="text-center">
+        <h1 className="font-display text-4xl text-ink sm:text-5xl">Let's identify it.</h1>
+        <p className="mx-auto mt-3 max-w-md text-[17px] leading-relaxed text-muted">
+          Take a photo or upload an image of your waste.
+        </p>
+        <div className="mx-auto mt-6 flex w-fit gap-1.5 rounded-full bg-surface2 p-1.5">
+          {(['photo', 'camera'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                setMode(m)
+                setError(null)
+              }}
+              className={
+                mode === m
+                  ? 'rounded-full bg-surface px-6 py-2.5 text-[15px] font-semibold text-ink shadow-soft'
+                  : 'rounded-full px-6 py-2.5 text-[15px] font-medium text-muted'
+              }
+            >
+              {m === 'photo' ? 'Photo' : 'Camera'}
             </button>
-          ) : null
-        }
-      />
-
-      {/* Mode switch */}
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ['upload', 'Upload'],
-            ['camera', 'Camera'],
-            ['live', 'Live Detection'],
-          ] as [Mode, string][]
-        ).map(([m, label]) => (
-          <button
-            key={m}
-            onClick={() => {
-              setMode(m)
-              setError(null)
-              setParams({}, { replace: true })
-            }}
-            className={cx(
-              'rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ease-spring',
-              mode === m
-                ? 'bg-emerald text-white shadow-glow'
-                : 'border border-line bg-surface/60 text-muted hover:border-emerald/40 hover:text-ink',
-            )}
-          >
-            {label}
-          </button>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {error && <ErrorState message={error} />}
-      {storedLoading && <Loading label="Recomputing Grad-CAM for this scan" />}
-
-      {result?.reanalysis && (
-        <Card className="border-lime/30 bg-lime/[0.05]">
-          <div className="flex items-start gap-3">
-            <span className="text-lime">↻</span>
-            <div className="text-xs leading-relaxed text-muted">
-              <span className="font-semibold text-ink">Re-analysis of a stored scan.</span>{' '}
-              {result.reanalysis.note} Original: {result.reanalysis.original_predicted_class} at{' '}
-              {(result.reanalysis.original_confidence * 100).toFixed(2)}%.
-            </div>
-          </div>
-        </Card>
+      {error && (
+        <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-rose/30 bg-rose/[0.06] p-4 text-[14px] text-ink">
+          {error}
+        </div>
+      )}
+      {loadingStored && (
+        <div className="mt-6 text-center text-[15px] text-muted">Opening your saved scan…</div>
       )}
 
-      <div className={cx('grid gap-4', result ? 'lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]' : '')}>
-        {/* Input panel */}
-        <div className="space-y-4">
-          {mode === 'upload' && (
-            <Card>
-              <Kicker>Image input</Kicker>
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setDragging(true)
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setDragging(false)
-                  acceptFile(e.dataTransfer.files?.[0])
-                }}
-                onClick={() => inputRef.current?.click()}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-                className={cx(
-                  'mt-3 grid cursor-pointer place-items-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition-all duration-200',
-                  dragging
-                    ? 'border-emerald bg-emerald/[0.07] scale-[1.01]'
-                    : 'border-line bg-surface2/40 hover:border-emerald/50 hover:bg-surface2/70',
-                )}
-              >
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="Selected waste item"
-                    className="max-h-64 w-auto rounded-lg object-contain shadow-soft"
-                  />
-                ) : (
-                  <>
-                    <div className="text-3xl text-muted/50">+</div>
-                    <div className="mt-3 text-sm font-semibold text-ink">Drop waste image here</div>
-                    <div className="mt-1 text-xs text-muted">or click to browse</div>
-                    <div className="mt-3 font-mono text-[11px] text-muted/70">PNG · JPG · WEBP · up to 12 MB</div>
-                  </>
-                )}
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept={ACCEPTED.join(',')}
-                  className="hidden"
-                  onChange={(e) => acceptFile(e.target.files?.[0])}
-                />
-              </div>
-
-              {file && (
-                <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-muted">
-                  <span className="truncate">{file.name}</span>
-                  <span className="shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
-                </div>
+      {!result && !loadingStored && (
+        <div className="mx-auto mt-6 max-w-2xl">
+          {mode === 'photo' ? (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragging(true)
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragging(false)
+                acceptFile(e.dataTransfer.files?.[0])
+              }}
+              onClick={() => inputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+              className={`grid cursor-pointer place-items-center rounded-[28px] border-2 border-dashed px-6 py-14 text-center transition ${
+                dragging ? 'border-emerald bg-emerald/[0.06]' : 'border-line bg-surface hover:border-emerald/50'
+              }`}
+            >
+              {preview ? (
+                <img src={preview} alt="Your waste item" className="max-h-72 w-auto rounded-2xl object-contain shadow-soft" />
+              ) : (
+                <>
+                  <div className="grid h-16 w-16 place-items-center rounded-3xl bg-surface2 text-3xl">📸</div>
+                  <div className="mt-4 text-[18px] font-bold text-ink">Drop a waste photo here</div>
+                  <div className="mt-1 text-[14px] text-muted">or click to choose one from your device</div>
+                  <div className="mt-3 text-[12px] text-muted">PNG, JPG or WEBP · up to 12 MB</div>
+                </>
               )}
-
-              <div className="mt-4 flex gap-2">
-                <button
-                  className="btn-primary flex-1"
-                  disabled={!file || busy}
-                  onClick={() => file && void analyze(file, 'upload')}
-                >
-                  {busy ? <Spinner className="h-4 w-4" /> : null}
-                  {busy ? 'Analyzing…' : 'Analyze Waste →'}
-                </button>
-                {(file || result) && (
-                  <button className="btn-ghost" onClick={reset}>
-                    Reset
-                  </button>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {(mode === 'camera' || mode === 'live') && (
-            <Card>
-              <div className="flex items-center justify-between">
-                <Kicker>{mode === 'live' ? 'Live detection' : 'Camera input'}</Kicker>
-                <Badge tone={camError ? 'bad' : 'good'}>
-                  <StatusDot tone={camError ? 'rose' : 'emerald'} pulse={!camError} />
-                  {camError ? 'unavailable' : 'streaming'}
-                </Badge>
-              </div>
-
-              <div className="relative mt-3 aspect-video overflow-hidden rounded-xl border border-line bg-black">
+              <input
+                ref={inputRef}
+                type="file"
+                accept={ACCEPTED.join(',')}
+                className="hidden"
+                onChange={(e) => acceptFile(e.target.files?.[0])}
+              />
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-[28px] border border-line bg-surface">
+              <div className="relative aspect-video bg-black">
                 <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
                 {busy && (
-                  <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-[1px]">
-                    <div className="flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-medium text-ink">
-                      <Spinner className="h-3.5 w-3.5 text-emerald" /> inferring…
+                  <div className="absolute inset-0 grid place-items-center bg-black/40">
+                    <div className="rounded-full bg-surface px-4 py-2 text-[14px] font-medium text-ink">
+                      Looking at your waste…
                     </div>
                   </div>
                 )}
-                {!busy && (mode === 'camera' || mode === 'live') && (
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-emerald/20 to-transparent animate-scanline" />
-                )}
                 {camError && (
-                  <div className="absolute inset-0 grid place-items-center bg-surface/95 p-4 text-center">
-                    <p className="text-xs leading-relaxed text-muted">{camError}</p>
+                  <div className="absolute inset-0 grid place-items-center bg-surface p-6 text-center">
+                    <p className="max-w-sm text-[14px] leading-relaxed text-muted">{camError}</p>
                   </div>
                 )}
               </div>
-
-              {mode === 'camera' ? (
-                <button className="btn-primary mt-4 w-full" onClick={() => void captureAndAnalyze()} disabled={busy || !!camError}>
-                  {busy ? <Spinner className="h-4 w-4" /> : null}
-                  Capture & Analyze
+              <div className="p-5">
+                <button className="btn-primary w-full" onClick={() => void captureAndAnalyze()} disabled={busy || !!camError}>
+                  {busy ? 'Looking…' : 'Take photo & identify'}
                 </button>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  <button
-                    className={cx('btn w-full', liveOn ? 'btn-danger' : 'btn-primary')}
-                    onClick={() => setLiveOn((v) => !v)}
-                    disabled={!!camError}
-                  >
-                    {liveOn ? '■ Stop live detection' : '● Start live detection'}
-                  </button>
-                  <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
-                    {[
-                      ['frames', String(liveStats?.frames ?? 0)],
-                      ['avg', liveStats ? ms(liveStats.avgMs) : '—'],
-                      ['class', result?.prediction.display ?? '—'],
-                    ].map(([k, v]) => (
-                      <div key={k} className="rounded-lg bg-surface2/60 px-2 py-1.5 text-center">
-                        <div className="text-muted/70">{k}</div>
-                        <div className="mt-0.5 truncate text-ink">{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-muted">
-                    Captures a frame every ~2.2s and runs a real inference. Each detection is stored in history.
-                  </p>
-                </div>
-              )}
-            </Card>
-          )}
-
-          {result && !storedLoading && (
-            <Card>
-              <Kicker>Quick facts</Kicker>
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted">Scan ID</span>
-                  <span className="truncate font-mono text-ink">{result.scan_id ?? 'not saved'}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted">Total inference</span>
-                  <span className="font-mono text-ink">{ms(result.timings_ms.total_ms)}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted">Device</span>
-                  <span className="font-mono text-ink">{result.model.device}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted">Input quality</span>
-                  <span className="font-mono text-ink">
-                    {result.input_quality.label} ({result.input_quality.score.toFixed(2)})
-                  </span>
-                </div>
               </div>
-            </Card>
+            </div>
           )}
-        </div>
 
-        {/* Result */}
-        {result && !storedLoading && (
-          <div className="min-w-0">
-            <ResultView result={result} classes={classes} onRescan={reset} onFeedback={() => undefined} />
-          </div>
-        )}
-      </div>
+          {mode === 'photo' && (
+            <button
+              className="btn-primary mt-4 w-full !py-4 !text-[17px]"
+              disabled={!file || busy}
+              onClick={() => file && void analyze(file, 'upload')}
+            >
+              {busy ? 'Looking at your waste…' : 'Identify this'}
+            </button>
+          )}
+          <p className="mt-3 text-center text-[13px] text-muted">
+            By scanning you agree your photo may be stored to improve EcoSort. No account needed.
+          </p>
+        </div>
+      )}
+
+      {busy && !result && (
+        <div className="mx-auto mt-8 max-w-2xl text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-[3px] border-line border-t-emerald" />
+          <div className="mt-3 text-[16px] font-medium text-ink">Looking at your waste…</div>
+          <div className="mt-1 text-[14px] text-muted">This usually takes a few seconds.</div>
+        </div>
+      )}
+
+      {result && !loadingStored && (
+        <div className="mx-auto mt-8 max-w-2xl">
+          <ResultView result={result} classes={classes.length ? classes : [result.prediction.class]} onTryAgain={reset} />
+          <button className="btn-ghost mt-4 w-full" onClick={reset}>
+            Try another image
+          </button>
+        </div>
+      )}
     </div>
   )
 }

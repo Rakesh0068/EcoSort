@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, type ClassInfo, type DatasetInfo, type Evaluation } from '../api'
+import { api, assetUrl, type ClassInfo, type DatasetInfo, type Evaluation } from '../api'
 import {
   Badge,
   Card,
@@ -257,7 +257,7 @@ export default function Learn() {
                       className="group aspect-square overflow-hidden rounded-xl border border-line bg-surface2"
                     >
                       <img
-                        src={url}
+                        src={assetUrl(url)}
                         alt={`${current.display} training example`}
                         loading="lazy"
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
@@ -325,7 +325,7 @@ export default function Learn() {
           role="presentation"
         >
           <img
-            src={lightbox}
+            src={assetUrl(lightbox)}
             alt="Enlarged training example"
             className="max-h-full max-w-full rounded-card border border-line object-contain"
           />

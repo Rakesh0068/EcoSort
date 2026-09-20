@@ -2,22 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---- Light: ivory / off-white, deep forest green, emerald, soft lime ---- */
+/* ---- Light (default): warm ivory, deep forest green, soft emerald ---- */
 :root {
-  --bg: 247 248 245;
+  --bg: 247 248 244;
   --surface: 255 255 255;
-  --surface-2: 241 244 239;
-  --line: 223 229 223;
-  --ink: 27 33 30;
-  --muted: 104 116 109;
-  --forest: 20 52 43;
+  --surface-2: 240 244 238;
+  --line: 224 230 222;
+  --ink: 26 32 29;
+  --muted: 100 112 105;
+  --forest: 22 61 45;
   --emerald: 5 150 105;
-  --lime: 132 204 22;
+  --lime: 101 163 13;
   --amber: 180 120 8;
   --rose: 190 44 60;
+  --sand: 250 249 245;
 }
 
-/* ---- Dark: #0B0F0D base, dark green surfaces, emerald highlights ---- */
+/* ---- Dark: optional, still supported ---- */
 .dark {
   --bg: 11 15 13;
   --surface: 18 24 21;
@@ -30,6 +31,7 @@
   --lime: 190 242 100;
   --amber: 251 191 36;
   --rose: 251 113 133;
+  --sand: 15 19 17;
 }
 
 @layer base {
@@ -53,7 +55,7 @@
   }
 
   ::selection {
-    background-color: rgb(var(--emerald) / 0.28);
+    background-color: rgb(var(--emerald) / 0.22);
   }
 
   h1,
@@ -63,7 +65,11 @@
     font-weight: 700;
   }
 
-  /* Slim, unobtrusive scrollbars to match the minimal aesthetic */
+  .font-display {
+    font-family: Fraunces, Inter, ui-sans-serif, system-ui, serif;
+    letter-spacing: -0.03em;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -95,31 +101,43 @@
 }
 
 @layer components {
-  /* Soft glass card used across the dashboard */
   .card {
-    @apply rounded-card border border-line bg-surface/80 shadow-soft backdrop-blur-xl;
+    @apply rounded-card border border-line bg-surface/90 shadow-soft backdrop-blur-xl;
   }
 
   .card-hover {
     @apply transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:shadow-lift;
   }
 
+  /* Human-readable section label — NOT monospace, NOT uppercase. */
   .kicker {
+    @apply text-[13px] font-semibold text-muted;
+  }
+
+  /* Technical label reserved for the Research area only. */
+  .kicker-tech {
     @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-muted;
   }
 
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5
-           text-sm font-semibold transition-all duration-200 ease-spring
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-full px-5 py-3
+           text-[15px] font-semibold transition-all duration-200 ease-spring
            disabled:pointer-events-none disabled:opacity-45;
   }
 
   .btn-primary {
+    @apply btn bg-forest text-white shadow-soft hover:brightness-125 active:scale-[0.98];
+  }
+  .dark .btn-primary {
+    @apply bg-emerald text-white shadow-glow hover:brightness-110;
+  }
+
+  .btn-accent {
     @apply btn bg-emerald text-white shadow-glow hover:brightness-110 active:scale-[0.98];
   }
 
   .btn-ghost {
-    @apply btn border border-line bg-surface/60 hover:border-emerald/50 hover:bg-surface2 active:scale-[0.98];
+    @apply btn border border-line bg-surface/70 hover:border-emerald/50 hover:bg-surface2 active:scale-[0.98];
   }
 
   .btn-danger {
@@ -128,25 +146,38 @@
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface2/70
+           px-2.5 py-1 text-xs font-medium text-muted;
+  }
+
+  .chip-tech {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface2/70
            px-2.5 py-1 font-mono text-[11px] font-medium tracking-wide text-muted;
   }
 
   .stat-value {
-    @apply font-mono text-3xl font-semibold tracking-tight text-ink tabular-nums;
+    @apply text-3xl font-bold tracking-tight text-ink tabular-nums;
   }
 
   .input {
-    @apply w-full rounded-xl border border-line bg-surface2/60 px-3 py-2 text-sm
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[15px]
            transition-colors placeholder:text-muted/70 focus:border-emerald/60 focus:outline-none;
   }
 
-  .nav-item {
-    @apply flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted
-           transition-all duration-200 hover:bg-surface2 hover:text-ink;
+  .nav-link {
+    @apply rounded-full px-3.5 py-2 text-[15px] font-medium text-muted
+           transition-colors hover:bg-surface2 hover:text-ink;
   }
 
-  .nav-item-active {
-    @apply bg-emerald/12 text-ink shadow-[inset_0_0_0_1px_rgb(var(--emerald)/0.22)];
+  .nav-link-active {
+    @apply bg-surface2 text-ink;
+  }
+
+  .container-site {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-6;
+  }
+
+  .section-pad {
+    @apply py-16 sm:py-20;
   }
 }
 
@@ -170,6 +201,13 @@
     background-image: linear-gradient(to right, rgb(var(--line) / 0.55) 1px, transparent 1px),
       linear-gradient(to bottom, rgb(var(--line) / 0.55) 1px, transparent 1px);
     background-size: 56px 56px;
+  }
+
+  .hero-blob {
+    background:
+      radial-gradient(420px 280px at 15% 20%, rgb(var(--emerald) / 0.14), transparent 70%),
+      radial-gradient(520px 340px at 85% 15%, rgb(var(--lime) / 0.12), transparent 70%),
+      radial-gradient(600px 400px at 50% 100%, rgb(var(--forest) / 0.08), transparent 70%);
   }
 }
 

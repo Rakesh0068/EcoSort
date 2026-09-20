@@ -8,6 +8,7 @@ import os
 import random
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -20,8 +21,8 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import db
-from api.robot import ROBOT, sample_heldout_image
+from api import db, hardware, runtime_config
+from api.robot import ROBOT, SIMULATED_MOTION_PHASES, VALID_STATES, sample_heldout_image
 from ml import config
 from ml.infer import DEVICE, Predictor, resolve_checkpoint
 
@@ -29,9 +30,31 @@ ROOT = config.ROOT
 WEB_DIST = ROOT / "web" / "dist"
 
 app = FastAPI(title="EcoSort API", version="0.1.0")
+
+
+def _allowed_origins() -> list[str]:
+    """CORS allow-list. Same-origin + local dev by default; production
+    frontends opt in via FRONTEND_ORIGINS (preferred) or ALLOWED_ORIGINS
+    (comma-separated). The wildcard is only used when explicitly requested,
+    for documented local-network testing — never production."""
+    raw = os.environ.get("FRONTEND_ORIGINS", "") or os.environ.get("ALLOWED_ORIGINS", "")
+    raw = raw.strip()
+    if raw == "*":
+        print("WARNING: CORS allow-origin '*' enabled via env (local testing only)")
+        return ["*"]
+    defaults = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ]
+    extra = [o.strip() for o in raw.split(",") if o.strip()]
+    return defaults + [o for o in extra if o not in defaults]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,9 +62,9 @@ app.add_middleware(
 
 predictor = Predictor()
 _training_proc: subprocess.Popen | None = None
+_model_lock = threading.Lock()
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 
 
 # ---------------------------------------------------------------- model state
@@ -49,21 +72,26 @@ MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 
 def ensure_model(force: bool = False) -> Predictor:
     global predictor
-    if force or not predictor.loaded:
-        ckpt = resolve_checkpoint()
-        if ckpt is None:
-            raise HTTPException(
-                status_code=503,
-                detail="No trained checkpoint available yet. Start a training run first.",
-            )
-        predictor.load(ckpt)
-        ROBOT._model_loaded = True
-    return predictor
+    # Locked so two simultaneous reload/first-predict requests cannot
+    # interleave a half-loaded model into serving.
+    with _model_lock:
+        if force or not predictor.loaded:
+            ckpt = resolve_checkpoint()
+            if ckpt is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="No trained checkpoint available yet. Start a training run first.",
+                )
+            predictor.load(ckpt)
+            ROBOT._model_loaded = True
+        return predictor
 
 
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+    runtime_config.load()
+    ROBOT.sync_config()
     ckpt = resolve_checkpoint()
     if ckpt:
         try:
@@ -78,9 +106,21 @@ def _startup() -> None:
 
 @app.get("/api/health")
 def health() -> dict:
+    from ml import dataset_registry as reg
+
     ckpt = resolve_checkpoint()
     training_active = _training_proc is not None and _training_proc.poll() is None
     stats_path = config.SPLITS_DIR / "dataset_stats.json"
+    versions = reg.load_versions()
+    finalized = [v for v in versions if v.get("kind", "finalized") == "finalized"]
+    # Production truth: the dataset behind the LOADED model. Falls back to
+    # the latest finalized version only when no model is loaded.
+    loaded_ds = (predictor.meta.get("training_config") or {}).get("dataset_version") if predictor.loaded else None
+    dataset_version = loaded_ds or (finalized[-1].get("version") if finalized else None)
+    try:
+        db_status = "ok" if db.activity_summary() is not None else "error"
+    except Exception:
+        db_status = "error"
     return {
         "api": "operational",
         "model_loaded": predictor.loaded,
@@ -89,10 +129,13 @@ def health() -> dict:
         "device": str(DEVICE),
         "cuda_available": DEVICE.type == "cuda",
         "dataset_prepared": stats_path.exists(),
+        "dataset_version": dataset_version,
         "dataset_stats": json.loads(stats_path.read_text()) if stats_path.exists() else None,
         "training_active": training_active,
         "training_pid": _training_proc.pid if training_active else None,
         "database": str(config.DB_PATH),
+        "database_status": db_status,
+        "robot_mode": ROBOT.mode,
         "server_time": time.time(),
     }
 
@@ -125,8 +168,13 @@ def model_reload(run_id: Optional[str] = None, weights: str = "best.pt") -> dict
     ckpt = resolve_checkpoint(run_id, weights)
     if ckpt is None:
         raise HTTPException(404, "checkpoint not found")
-    predictor.load(ckpt)
-    ROBOT._model_loaded = True
+    with _model_lock:
+        try:
+            predictor.load(ckpt)
+        except Exception as exc:
+            # Old model stays in place: load() only swaps internals on success.
+            raise HTTPException(500, f"checkpoint failed to load, previous model kept: {exc}") from exc
+        ROBOT._model_loaded = True
     return {"loaded": True, "checkpoint": str(ckpt), "version": predictor.version}
 
 
@@ -156,6 +204,7 @@ def _run_prediction(pil: Image.Image, source: str, image_path: Optional[str], sa
                 "quality": result["input_quality"],
                 "centroid": result["explainability"]["activation_centroid"],
                 "model_version": result["model"]["version"],
+                "dataset_version": result["model"].get("dataset_version"),
             }
         )
     result["scan_id"] = scan_id
@@ -164,22 +213,13 @@ def _run_prediction(pil: Image.Image, source: str, image_path: Optional[str], sa
 
 @app.post("/api/predict")
 async def predict(file: UploadFile = File(...), source: str = "upload", save: bool = True) -> dict:
+    from inference.preprocessing import decode_upload
+
     raw = await file.read()
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "image exceeds 12 MB limit")
-    if not raw:
-        raise HTTPException(400, "empty upload")
-
-    ext = Path(file.filename or "upload.jpg").suffix.lower()
-    if ext not in ALLOWED_EXT:
-        ext = ".jpg"
-
     try:
-        pil = Image.open(__import__("io").BytesIO(raw))
-        pil.load()
-        pil = pil.convert("RGB")
-    except (UnidentifiedImageError, OSError) as exc:
-        raise HTTPException(400, f"could not decode image: {exc}") from exc
+        pil, ext = decode_upload(raw, file.filename)
+    except ValueError as exc:
+        raise HTTPException(413 if "exceeds" in str(exc) else 400, str(exc)) from exc
 
     saved_path = None
     if save:
@@ -325,6 +365,8 @@ def activity() -> dict:
 
 @app.get("/api/dataset")
 def dataset() -> dict:
+    from ml import dataset_registry as reg
+
     stats_path = config.SPLITS_DIR / "dataset_stats.json"
     if not stats_path.exists():
         raise HTTPException(503, "dataset split not built - run `python -m ml.data`")
@@ -346,12 +388,38 @@ def dataset() -> dict:
     smallest = min(n.values()) if n else 0
     balance_ratio = round(largest / smallest, 2) if smallest else None
 
+    prog = reg.progress(stats)
+    per_class_target_view = {}
+    for c in reg.CANONICAL_13:
+        per_class_target_view[c] = {
+            "have": prog["per_class"][c]["have"],
+            "target": prog["per_class"][c]["target"],
+            "gap": prog["per_class"][c]["gap"],
+            "pct_of_dataset": prog["per_class"][c]["pct_of_dataset"],
+            "pct_of_target": prog["per_class"][c]["pct_of_target"],
+            "display": reg.CANONICAL_DISPLAY[c],
+            "train": 0,
+            "val": 0,
+            "test": 0,
+        }
+    # Fill train/val/test from the model-compatible per_class keys
+    # (e.g. on-disk "biological" reports under canonical "organic").
+    for raw, d in counts.items():
+        canon = reg.canonical(raw)
+        if canon and canon in per_class_target_view and isinstance(d, dict):
+            per_class_target_view[canon]["train"] = d.get("train", 0)
+            per_class_target_view[canon]["val"] = d.get("val", 0)
+            per_class_target_view[canon]["test"] = d.get("test", 0)
+
     return {
         **stats,
         "gallery": gallery,
         "health": {
             "duplicates_removed": {"value": stats.get("duplicates_removed"), "ok": True},
+            "near_duplicates_removed": {"value": stats.get("near_duplicates_removed", 0), "ok": True},
             "corrupt_files": {"value": stats.get("corrupt_unreadable"), "ok": True},
+            "low_quality_removed": {"value": stats.get("low_quality_removed", 0), "ok": True},
+            "unmapped_skipped": {"value": stats.get("unmapped_skipped", 0), "ok": True},
             "missing_images": {"value": 0, "ok": True},
             "class_balance": {
                 "value": balance_ratio,
@@ -363,6 +431,85 @@ def dataset() -> dict:
                 "ok": True,
             },
         },
+        # 100K goal: honest actual-vs-target accounting. `verified` is the
+        # only number that counts; augmented copies are never included.
+        "goal_100k": {
+            "target": prog["target"],
+            "verified": prog["verified"],
+            "remaining": prog["remaining"],
+            "reached": prog["reached"],
+            "progress_frac": prog["progress_frac"],
+            "train": prog["train"],
+            "val": prog["val"],
+            "test": prog["test"],
+            "per_class": per_class_target_view,
+            "strongest_classes": prog["strongest_classes"],
+            "underrepresented_classes": prog["underrepresented_classes"],
+            "missing_classes": prog["missing_classes"],
+        },
+        "robot_ready": reg.robot_ready_summary(),
+    }
+
+
+@app.get("/api/dataset/sources")
+def dataset_sources() -> dict:
+    from ml import dataset_registry as reg
+
+    rows = reg.load_sources()
+    return {
+        "count": len(rows),
+        "sources": rows,
+        "note": "Every imported dataset must record name, source, licence and class mapping. No scraping; no unclear rights.",
+    }
+
+
+@app.get("/api/dataset/versions")
+def dataset_versions() -> dict:
+    from ml import dataset_registry as reg
+
+    rows = reg.load_versions()
+    current = reg.current_stats()
+    return {
+        "count": len(rows),
+        "versions": rows,
+        "current_verified": int(current.get("total_unique", 0)) if current else 0,
+        "target": reg.TARGET_TOTAL,
+    }
+
+
+@app.get("/api/dataset/health")
+def dataset_health() -> dict:
+    from ml import dataset_registry as reg
+
+    stats = reg.current_stats()
+    if not stats:
+        raise HTTPException(503, "dataset split not built - run `python -m ml.data`")
+    return {"report": reg.health_report(stats), "target": reg.TARGET_TOTAL}
+
+
+@app.get("/api/dataset/targets")
+def dataset_targets() -> dict:
+    from ml import dataset_registry as reg
+
+    stats = reg.current_stats()
+    prog = reg.progress(stats)
+    return {
+        "target": prog["target"],
+        "verified": prog["verified"],
+        "remaining": prog["remaining"],
+        "reached": prog["reached"],
+        "per_class": {
+            c: {
+                "display": reg.CANONICAL_DISPLAY[c],
+                "have": v["have"],
+                "target": v["target"],
+                "gap": v["gap"],
+            }
+            for c, v in prog["per_class"].items()
+        },
+        "missing_classes": prog["missing_classes"],
+        "underrepresented_classes": prog["underrepresented_classes"],
+        "strongest_classes": prog["strongest_classes"],
     }
 
 
@@ -492,6 +639,185 @@ def misclassified(true_class: str, predicted_class: str, limit: int = Query(6, g
     }
 
 
+# ---------------------------------------------------------------------- models
+
+
+def _served_checkpoint() -> str | None:
+    if predictor.loaded and predictor.checkpoint_path:
+        return str(predictor.checkpoint_path)
+    ckpt = resolve_checkpoint()
+    return str(ckpt) if ckpt else None
+
+
+@app.get("/api/models")
+def models() -> dict:
+    from ml import model_registry as mreg
+
+    rows = mreg.list_models(_served_checkpoint())
+    deployed = next((m for m in rows if m["status"] == "DEPLOYED"), None)
+    return {"count": len(rows), "models": rows,
+            "deployed": deployed["run_id"] if deployed else None}
+
+
+@app.get("/api/models/compare")
+def models_compare(ids: str = Query("run-001,run-002")) -> dict:
+    from ml import model_registry as mreg
+
+    return mreg.compare_models([i.strip() for i in ids.split(",") if i.strip()],
+                               _served_checkpoint())
+
+
+class DeployRequest(BaseModel):
+    run_id: str
+    weights: str = "best.pt"
+    note: str = ""
+
+
+@app.post("/api/models/deploy")
+def models_deploy(body: DeployRequest) -> dict:
+    """Explicit deployment decision: pin production to a checkpoint.
+
+    Pinning alone does not swap the live model; call POST /api/model/reload
+    (no run_id — it follows the pin) to activate. Rollback = deploy the
+    previous run again. Nothing here trains or auto-deploys.
+    """
+    from ml import model_registry as mreg
+
+    try:
+        pin = mreg.set_pin(body.run_id, body.weights, body.note)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    db.log_system("info", "deployment", f"pinned production to {pin['checkpoint']} ({body.note})")
+    return {"pinned": pin, "active_after_reload": True,
+            "note": "Call POST /api/model/reload to activate in the live process."}
+
+
+@app.get("/api/models/deployment")
+def models_deployment() -> dict:
+    from ml import model_registry as mreg
+
+    return {"pin": mreg.get_pin(), "served_checkpoint": _served_checkpoint()}
+
+
+@app.get("/api/models/error-analysis")
+def models_error_analysis(run_id: str = "run-002") -> dict:
+    from ml import model_registry as mreg
+
+    return mreg.error_analysis(run_id)
+
+
+# ------------------------------------------------- predictions log / analytics
+
+
+@app.get("/api/predictions")
+def predictions(
+    limit: int = Query(200, ge=1, le=500),
+    model: Optional[str] = None,
+    cls: Optional[str] = None,
+    min_conf: Optional[float] = None,
+    max_conf: Optional[float] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    feedback: Optional[str] = None,
+) -> dict:
+    rows = db.query_predictions(limit, model, cls, min_conf, max_conf,
+                                date_from, date_to, feedback)
+    return {"count": len(rows), "predictions": rows}
+
+
+@app.get("/api/analytics")
+def analytics() -> dict:
+    return db.prediction_analytics()
+
+
+# ------------------------------------------------------- active learning
+
+
+@app.get("/api/active-learning/queue")
+def active_learning_queue(limit: int = Query(100, ge=1, le=500)) -> dict:
+    items = db.active_learning_queue(limit)
+    return {"count": len(items), "items": items,
+            "note": "Prioritised by measured signals only: confidence, user corrections, "
+                    "class frequency, confusion recurrence, robot relevance."}
+
+
+@app.get("/api/active-learning/stats")
+def active_learning_stats() -> dict:
+    return db.review_stats()
+
+
+class ReviewAction(BaseModel):
+    scan_id: str
+    action: str  # accept | correct | reject | uncertain
+    correct_class: Optional[str] = None
+
+
+@app.post("/api/active-learning/review")
+def active_learning_review(body: ReviewAction) -> dict:
+    if body.action not in ("accept", "correct", "reject", "uncertain"):
+        raise HTTPException(422, "action must be accept|correct|reject|uncertain")
+    row = db.get_scan(body.scan_id)
+    if not row:
+        raise HTTPException(404, "scan not found")
+    predicted = row["predicted_class"]
+    if body.action == "accept":
+        cid = db.insert_correction(body.scan_id, predicted, predicted, "review", "verified")
+        return {"correction_id": cid, "scan_id": body.scan_id, "verified_class": predicted,
+                "candidate": True}
+    if body.action == "correct":
+        if not body.correct_class or body.correct_class not in config.CLASSES:
+            raise HTTPException(422, "a valid correct_class is required")
+        cid = db.insert_correction(body.scan_id, predicted, body.correct_class, "review", "verified")
+        return {"correction_id": cid, "scan_id": body.scan_id, "verified_class": body.correct_class,
+                "candidate": True}
+    status = "rejected" if body.action == "reject" else "uncertain"
+    cid = db.insert_correction(body.scan_id, predicted, body.correct_class or predicted,
+                               "review", status)
+    return {"correction_id": cid, "scan_id": body.scan_id, "status": status, "candidate": False}
+
+
+@app.get("/api/dataset/candidates")
+def dataset_candidates(limit: int = Query(200, ge=1, le=500)) -> dict:
+    rows = db.dataset_candidates(limit)
+    return {"count": len(rows), "candidates": rows,
+            "note": "Verified reviewer labels for a future dataset version. "
+                    "The frozen test set is never modified by this path."}
+
+
+@app.get("/api/acquisition/targets")
+def acquisition_targets() -> dict:
+    from ml import dataset_registry as reg
+
+    targets = reg.load_acq_targets()
+    cands = db.dataset_candidates(10000)
+    verified: dict[str, int] = {}
+    for c in cands:
+        canon = reg.canonical(c["correct_class"]) or c["correct_class"]
+        verified[canon] = verified.get(canon, 0) + 1
+    rows = {}
+    for cls in reg.CANONICAL_13:
+        have = verified.get(cls, 0)
+        tgt = targets.get(cls, 0)
+        rows[cls] = {"display": reg.CANONICAL_DISPLAY[cls], "verified": have,
+                     "target": tgt, "remaining": max(0, tgt - have)}
+    return {"per_class": rows,
+            "note": "Targets are configurable planning goals (PUT here). Verified counts are live reviewer-verified labels."}
+
+
+class AcqTargetsUpdate(BaseModel):
+    targets: dict
+
+
+@app.put("/api/acquisition/targets")
+def acquisition_targets_put(body: AcqTargetsUpdate) -> dict:
+    from ml import dataset_registry as reg
+
+    try:
+        return {"targets": reg.save_acq_targets(body.targets)}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 # ----------------------------------------------------------------------- robot
 
 
@@ -531,6 +857,116 @@ def robot_bin_map(body: BinMapUpdate) -> dict:
         raise HTTPException(422, str(exc)) from exc
 
 
+class PauseBody(BaseModel):
+    paused: bool = True
+
+
+@app.post("/api/robot/pause")
+def robot_pause(body: PauseBody) -> dict:
+    result = ROBOT.pause(body.paused)
+    db.log_robot_event("pause" if body.paused else "resume", state=result["state"])
+    return result
+
+
+@app.get("/api/robot/config")
+def robot_config_get() -> dict:
+    return {
+        **runtime_config.current(),
+        "states": list(VALID_STATES),
+        "simulated_motion_phases": list(SIMULATED_MOTION_PHASES),
+        "capabilities": ROBOT.capabilities(),
+    }
+
+
+class ThresholdUpdate(BaseModel):
+    confidence_threshold: Optional[float] = None
+    margin_threshold: Optional[float] = None
+
+
+@app.put("/api/robot/config")
+def robot_config_put(body: ThresholdUpdate) -> dict:
+    try:
+        updated = runtime_config.save_thresholds(body.confidence_threshold, body.margin_threshold)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    db.log_robot_event(
+        "config_change",
+        state=ROBOT.state,
+        detail={
+            "confidence_threshold": updated["confidence_threshold"],
+            "margin_threshold": updated["margin_threshold"],
+        },
+    )
+    return updated
+
+
+@app.get("/api/robot/capabilities")
+def robot_capabilities() -> dict:
+    return ROBOT.capabilities()
+
+
+@app.post("/api/robot/sort")
+async def robot_sort(file: UploadFile = File(...)) -> dict:
+    """Real end-to-end sorting command: upload -> inference -> gated decision.
+
+    The returned `command` block is the payload a physical controller would
+    receive. Nothing is actuated here because no hardware is attached.
+    """
+    if ROBOT.emergency:
+        raise HTTPException(409, "emergency stop engaged - release it before sorting")
+    if ROBOT.paused:
+        raise HTTPException(409, "robot is paused")
+
+    from inference.preprocessing import decode_upload
+
+    raw = await file.read()
+    try:
+        pil, ext = decode_upload(raw, file.filename)
+    except ValueError as exc:
+        raise HTTPException(413 if "exceeds" in str(exc) else 400, str(exc)) from exc
+
+    saved = config.UPLOADS_DIR / f"robot_{db.new_id()}{ext}"
+    saved.write_bytes(raw)
+
+    p = ensure_model()
+    ROBOT.set_state("SCANNING")
+    ROBOT.set_state("CLASSIFYING")
+    result = p.predict(pil)
+    decision = ROBOT.decide(result, source="robot_api")
+    db.log_robot_event(
+        "sort_command",
+        state=ROBOT.state,
+        cls=decision["class"],
+        confidence=decision["confidence"],
+        target_bin=decision["target_bin"],
+        detail={"decision": decision["decision"], "reason": decision["reason"], "image": str(saved)},
+    )
+    return {
+        "command": {
+            "action": decision["decision"],
+            "target_bin": decision["target_bin"],
+            "bin_label": decision["bin_label"],
+            "class": decision["class"],
+            "confidence": decision["confidence"],
+            "centroid": decision["centroid"],
+            "reason": decision["reason"],
+            "issued_at": decision["timestamp"],
+            "actuated": False,
+            "note": "no hardware attached - command logged only",
+        },
+        "robot_state": ROBOT.state,
+        "prediction": result["prediction"],
+        "image_url": f"/uploads/{saved.name}",
+        "telemetry": ROBOT.status()["telemetry"],
+    }
+
+
+@app.get("/api/system/camera")
+def system_camera(index: int = Query(0, ge=0, le=4)) -> dict:
+    """Actually try to open a camera device and grab a frame."""
+    return hardware.probe_camera(index)
+
+
 @app.get("/api/robot/events")
 def robot_events(limit: int = Query(100, ge=1, le=500)) -> dict:
     rows = db.list_robot_events(limit)
@@ -540,6 +976,10 @@ def robot_events(limit: int = Query(100, ge=1, le=500)) -> dict:
 @app.post("/api/robot/simulate/step")
 def robot_simulate_step(save: bool = True) -> dict:
     """Pull a real held-out image, run the real model, and make a real decision."""
+    if ROBOT.emergency:
+        raise HTTPException(409, "emergency stop engaged - release it before running the simulator")
+    if ROBOT.paused:
+        raise HTTPException(409, "robot is paused")
     path = sample_heldout_image()
     if path is None:
         raise HTTPException(503, "test split manifest unavailable")
@@ -574,6 +1014,7 @@ def robot_simulate_step(save: bool = True) -> dict:
                 "quality": result["input_quality"],
                 "centroid": result["explainability"]["activation_centroid"],
                 "model_version": result["model"]["version"],
+                "dataset_version": result["model"].get("dataset_version"),
             }
         )
 
@@ -589,6 +1030,7 @@ def robot_simulate_step(save: bool = True) -> dict:
     return {
         "decision": decision,
         "robot_state": ROBOT.state,
+        "motion_phases": list(SIMULATED_MOTION_PHASES) if decision["decision"] == "SORT" else [],
         "scan_id": scan_id,
         "source_image": f"/dataset-images/{config.DATASET_VARIANT}/{path.parent.name}/{path.name}",
         "prediction": result["prediction"],
@@ -609,7 +1051,7 @@ def robot_compatibility() -> dict:
         "input_size_supported": predictor.loaded and predictor.meta.get("training_config", {}).get("image_size") == config.IMAGE_SIZE,
         "classes_available": predictor.loaded and len(predictor.meta.get("classes", [])) == config.NUM_CLASSES,
         "robot_api_compatible": True,
-        "camera_connected": ROBOT.mode == "simulation",
+        "simulation_mode_active": ROBOT.mode == "simulation",
         "sorting_map_configured": all(c in ROBOT.bin_map for c in config.CLASSES),
         "dataset_split_available": stats_path.exists(),
         "cuda_available": DEVICE.type == "cuda",
@@ -620,7 +1062,82 @@ def robot_compatibility() -> dict:
         "checks": checks,
         "ready_for_deployment": ready,
         "blocking": [k for k, v in checks.items() if not v],
+        "hardware_connected": False,
+        "interface": "SIMULATION",
+        "note": "Software readiness only - no physical robot or arm is attached.",
     }
+
+
+@app.post("/api/robot/predict")
+async def robot_predict(file: UploadFile = File(...)) -> dict:
+    """Classify one image for the robot pipeline without issuing a motion command.
+
+    Always marked simulation:true - perception only, no actuation path here.
+    """
+    from inference.preprocessing import decode_upload
+
+    raw = await file.read()
+    try:
+        pil, _ext = decode_upload(raw, file.filename)
+    except ValueError as exc:
+        raise HTTPException(413 if "exceeds" in str(exc) else 400, str(exc)) from exc
+    p = ensure_model()
+    ROBOT.set_state("CLASSIFYING")
+    result = p.predict(pil)
+    return {
+        "simulation": True,
+        "prediction": result["prediction"],
+        "centroid": result["explainability"]["activation_centroid"],
+        "timings_ms": result["timings_ms"],
+        "model_version": result["model"]["version"],
+        "note": "perception only - use /api/robot/sort for a gated sorting decision",
+    }
+
+
+@app.post("/api/robot/stop")
+def robot_stop() -> dict:
+    """Stop all motion (engages the emergency stop). Simulation: flags only."""
+    from api.robot import ADAPTER
+
+    out = ADAPTER.stop()
+    db.log_robot_event("emergency_stop", state=ROBOT.state, detail={"via": "stop"})
+    return {"simulation": True, **out}
+
+
+class RobotFeedback(BaseModel):
+    scan_id: Optional[str] = None
+    correct: bool = True
+    correct_class: Optional[str] = None
+
+
+@app.post("/api/robot/feedback")
+def robot_feedback(body: RobotFeedback) -> dict:
+    """Feedback on a robot-pipeline prediction. Stored like any other feedback."""
+    if not body.scan_id:
+        last = ROBOT.current
+        if not last:
+            raise HTTPException(404, "no robot decision to give feedback on")
+        return {"simulation": True, "stored": False,
+                "note": "robot decisions are in-memory; upload-linked scans carry feedback via /api/scans/{id}/feedback"}
+    row = db.get_scan(body.scan_id)
+    if not row:
+        raise HTTPException(404, "scan not found")
+    predicted = row["predicted_class"]
+    final = predicted if body.correct else body.correct_class
+    if not body.correct and (not final or final not in config.CLASSES):
+        raise HTTPException(422, "correct_class is required when correct=false")
+    cid = db.insert_correction(body.scan_id, predicted, final, "robot")
+    return {"simulation": True, "stored": True, "correction_id": cid,
+            "verified_class": final}
+
+
+@app.get("/api/robot/adapter")
+def robot_adapter() -> dict:
+    from api.robot import ADAPTER
+
+    return {"adapter": ADAPTER.name, "simulation": True,
+            "status": ADAPTER.get_status(),
+            "note": "SimulationRobotAdapter only. ROS2/Arduino/RaspberryPi adapters do not exist yet."}
 
 
 # --------------------------------------------------------------- static mounts

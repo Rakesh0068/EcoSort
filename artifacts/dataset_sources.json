@@ -1,0 +1,94 @@
+[
+  {
+    "name": "bundled-base-corpus",
+    "source": "pre-existing local corpus (standardized_256)",
+    "url": "",
+    "license": "UNKNOWN - provenance not yet documented; verify rights before redistributing",
+    "original_image_count": 12259,
+    "imported_image_count": 10421,
+    "mapped_classes": [
+      "battery",
+      "biological",
+      "cardboard",
+      "clothes",
+      "glass",
+      "metal",
+      "paper",
+      "plastic",
+      "shoes",
+      "trash"
+    ],
+    "note": "Seed corpus predating the 100K programme. Per-class licences/sources still to be documented; all future imports require a licence string.",
+    "import_date": "2026-09-19T16:09:09+00:00"
+  },
+  {
+    "name": "Garbage-YOLO-khoaliamle",
+    "source": "C:\\EcoSort\\artifacts\\imports\\garbage-yolo-khoaliamle\\classify",
+    "url": "https://huggingface.co/datasets/khoaliamle/Garbage_Classification_YOLO",
+    "license": "MIT (uploader-declared on Hugging Face - verify before redistributing)",
+    "original_image_count": 17867,
+    "imported_image_count": 12751,
+    "mapped_classes": [
+      "battery",
+      "cardboard",
+      "clothes",
+      "glass",
+      "metal",
+      "organic",
+      "paper",
+      "plastic",
+      "shoes",
+      "trash"
+    ],
+    "per_class": {
+      "battery": 398,
+      "organic": 813,
+      "cardboard": 817,
+      "clothes": 4505,
+      "glass": 1570,
+      "metal": 626,
+      "paper": 981,
+      "plastic": 1060,
+      "shoes": 1351,
+      "trash": 630
+    },
+    "exact_duplicates_skipped": 0,
+    "near_duplicates_skipped": 5066,
+    "corrupt_skipped": 0,
+    "low_quality_skipped": 50,
+    "unmapped_skipped": 0,
+    "robot_ready_tagged": true,
+    "import_date": "2026-09-19T17:26:27+00:00"
+  },
+  {
+    "name": "TrashNet-garythung",
+    "source": "artifacts\\imports\\trashnet-garythung\\extracted\\dataset-resized",
+    "url": "https://huggingface.co/datasets/garythung/trashnet",
+    "license": "MIT (author-declared on Hugging Face - verify before redistributing)",
+    "original_image_count": 2527,
+    "imported_image_count": 163,
+    "mapped_classes": [
+      "cardboard",
+      "glass",
+      "metal",
+      "paper",
+      "plastic",
+      "trash"
+    ],
+    "per_class": {
+      "cardboard": 29,
+      "glass": 25,
+      "metal": 33,
+      "paper": 33,
+      "plastic": 32,
+      "trash": 11
+    },
+    "exact_duplicates_skipped": 1537,
+    "near_duplicates_skipped": 827,
+    "corrupt_skipped": 0,
+    "low_quality_skipped": 0,
+    "unmapped_skipped": 0,
+    "robot_ready_tagged": false,
+    "import_date": "2026-09-20T06:19:17+00:00"
+  }
+]

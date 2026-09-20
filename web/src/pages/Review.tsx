@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type Correction, type Scan } from '../api'
+import { api, assetUrl, type Correction, type Scan } from '../api'
 import {
   Badge,
   Card,
@@ -59,7 +59,7 @@ function QueueItem({
           </div>
         ) : (
           <img
-            src={`/api/scans/${scan.id}/image`}
+            src={assetUrl(`/api/scans/${scan.id}/image`)}
             alt={`Scan predicted as ${scan.predicted_class}`}
             loading="lazy"
             onError={() => setBroken(true)}

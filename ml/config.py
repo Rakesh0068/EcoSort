@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 ROOT = Path(__file__).resolve().parent.parent
 ARTIFACTS = ROOT / "artifacts"
@@ -8,7 +9,9 @@ METRICS_DIR = ARTIFACTS / "metrics"
 UPLOADS_DIR = ARTIFACTS / "uploads"
 DB_PATH = ARTIFACTS / "ecosort.db"
 
-DATASET_ROOT = Path(r"C:/Users/rakes/Downloads/archive")
+# Dataset location: ECOSORT_DATASET_ROOT wins (production/portable hosts);
+# falls back to the original development path.
+DATASET_ROOT = Path(os.environ.get("ECOSORT_DATASET_ROOT") or r"C:/Users/rakes/Downloads/archive")
 DATASET_VARIANT = "standardized_256"
 DATASET_DIR = DATASET_ROOT / DATASET_VARIANT
 
@@ -51,7 +54,9 @@ DISPLAY_NAMES = {
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 
+# Both thresholds can be overridden at runtime through the robot config API.
 CONFIDENCE_THRESHOLD = 0.60
+MARGIN_THRESHOLD = 0.15
 
 # Configurable class -> bin mapping for the robot sorting engine.
 BIN_MAP = {

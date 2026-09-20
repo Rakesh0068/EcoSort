@@ -90,8 +90,91 @@ export function Badge({
 
 export function confidenceTone(state: ConfidenceState | string) {
   if (state === 'high') return { tone: 'good' as const, color: 'rgb(var(--emerald))', label: 'High confidence' }
-  if (state === 'moderate') return { tone: 'warn' as const, color: 'rgb(var(--amber))', label: 'Moderate confidence' }
-  return { tone: 'bad' as const, color: 'rgb(var(--rose))', label: 'Low confidence' }
+  if (state === 'moderate') return { tone: 'warn' as const, color: 'rgb(var(--amber))', label: 'Fairly confident' }
+  return { tone: 'bad' as const, color: 'rgb(var(--rose))', label: 'Not very sure' }
+}
+
+/* ------------------------------------------------- consumer product kit --- */
+
+export function friendlyConfidence(state: ConfidenceState | string): string {
+  if (state === 'high') return 'High confidence'
+  if (state === 'moderate') return 'Fairly confident'
+  return 'Not very sure'
+}
+
+export function SiteSection({
+  eyebrow,
+  title,
+  sub,
+  children,
+  align = 'center',
+}: {
+  eyebrow?: string
+  title: string
+  sub?: string
+  children?: ReactNode
+  align?: 'center' | 'left'
+}) {
+  return (
+    <div className={align === 'center' ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'}>
+      {eyebrow && (
+        <div
+          className={cx(
+            'inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-[13px] font-semibold text-forest',
+            align === 'center' ? '' : '',
+          )}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
+          {eyebrow}
+        </div>
+      )}
+      <h2 className="font-display mt-4 text-3xl leading-[1.05] text-ink sm:text-[2.6rem]">{title}</h2>
+      {sub && <p className="mt-4 text-[17px] leading-relaxed text-muted">{sub}</p>}
+      {children}
+    </div>
+  )
+}
+
+export function TechDetails({ summary = 'Technical details', children }: { summary?: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-2xl border border-line bg-surface2/50">
+      <summary className="cursor-pointer list-none px-5 py-4 text-[15px] font-semibold text-ink marker:hidden [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center justify-between gap-3">
+          {summary}
+          <span className="text-muted transition-transform group-open:rotate-180">▾</span>
+        </span>
+        <span className="mt-1 block text-[13px] font-normal text-muted">
+          Model, confidence and timing info — only if you're curious.
+        </span>
+      </summary>
+      <div className="border-t border-line px-5 py-4">{children}</div>
+    </details>
+  )
+}
+
+export const WASTE_VISUALS: Record<string, { icon: string; tint: string; blurb: string }> = {
+  plastic: { icon: '🍶', tint: 'bg-emerald/10', blurb: 'Bottles, tubs and packaging' },
+  glass: { icon: '🫙', tint: 'bg-sky-100', blurb: 'Jars and bottles' },
+  metal: { icon: '🥫', tint: 'bg-stone-200', blurb: 'Cans and tins' },
+  paper: { icon: '📄', tint: 'bg-amber-100', blurb: 'Sheets, mail and notebooks' },
+  cardboard: { icon: '📦', tint: 'bg-orange-100', blurb: 'Boxes and cartons' },
+  biological: { icon: '🌱', tint: 'bg-lime-100', blurb: 'Food scraps and garden waste' },
+  battery: { icon: '🔋', tint: 'bg-red-100', blurb: 'Needs special handling' },
+  clothes: { icon: '👕', tint: 'bg-violet-100', blurb: 'Wearable textiles' },
+  shoes: { icon: '👟', tint: 'bg-indigo-100', blurb: 'Pairs and footwear' },
+  trash: { icon: '🗑️', tint: 'bg-neutral-200', blurb: "Anything that doesn't fit elsewhere" },
+}
+
+export function wasteVisual(id: string) {
+  return WASTE_VISUALS[id] ?? { icon: '♻️', tint: 'bg-emerald/10', blurb: 'Waste item' }
+}
+
+export function displayName(id: string) {
+  const pretty: Record<string, string> = {
+    biological: 'Organic waste',
+  }
+  if (pretty[id]) return pretty[id]
+  return id.charAt(0).toUpperCase() + id.slice(1)
 }
 
 export function Stat({

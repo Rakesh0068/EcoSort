@@ -1,0 +1,17 @@
+# EcoSort production inference dependencies (Vercel-evaluated).
+# CPU-only torch: Vercel has no GPU, and the CUDA build (4.6 GB installed)
+# cannot ship in any function bundle. Install with:
+#   pip install -r requirements-prod.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# NOTE: requirements.txt is already training-clean (no training-only packages);
+# this file exists to pin the CPU-torch production variant explicitly.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
+numpy>=1.26
+pillow>=10.0
+opencv-python>=4.9
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+python-multipart>=0.0.9

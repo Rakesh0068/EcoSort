@@ -255,8 +255,8 @@ export default function Landing() {
               <Link to="/scan" className="btn-primary">
                 Scan Waste <span aria-hidden>→</span>
               </Link>
-              <Link to="/evaluation" className="btn-ghost">
-                Explore the Model
+              <Link to="/robot?tab=simulation" className="btn-ghost">
+                Open Robot Simulator
               </Link>
             </div>
 

@@ -1,0 +1,6 @@
+{
+  "run_id": "run-002",
+  "weights": "best.pt",
+  "checkpoint": "C:\\EcoSort\\artifacts\\runs\\run-002\\best.pt",
+  "note": "initial explicit deployment: run-002 stays production until a deliberate decision"
+}

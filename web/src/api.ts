@@ -85,11 +85,14 @@ export interface PredictionResult {
   timings_ms: Record<string, number>
   model: {
     version: string
+    run_id?: string | null
     architecture: string
     input_size: number
     device: string
     num_classes: number
     checkpoint: string | null
+    dataset_version?: string | null
+    dataset_verified_images?: number | null
   }
 }
 
@@ -207,6 +210,57 @@ export interface MisclassifiedExample {
   url?: string
 }
 
+export interface Goal100KClass {
+  have: number
+  target: number
+  gap: number
+  pct_of_dataset: number
+  pct_of_target: number
+  display: string
+  train: number
+  val: number
+  test: number
+}
+
+export interface Goal100K {
+  target: number
+  verified: number
+  remaining: number
+  reached: boolean
+  progress_frac: number
+  train: number
+  val: number
+  test: number
+  per_class: Record<string, Goal100KClass>
+  strongest_classes: string[]
+  underrepresented_classes: string[]
+  missing_classes: string[]
+}
+
+export interface DatasetSource {
+  name: string
+  source?: string
+  url?: string
+  license: string
+  import_date?: string
+  original_image_count?: number
+  imported_image_count?: number
+  mapped_classes?: string[]
+  per_class?: Record<string, number>
+  note?: string
+}
+
+export interface DatasetVersion {
+  version: string
+  created_at?: string
+  total_images: number
+  class_distribution?: Record<string, number>
+  sources?: (string | { name?: string })[]
+  duplicates_removed?: number
+  split?: Record<string, number>
+  note?: string
+}
+
 export interface DatasetInfo {
   dataset_dir: string
   variant: string
@@ -218,16 +272,24 @@ export interface DatasetInfo {
   total_files_scanned: number
   total_unique: number
   duplicates_removed: number
+  near_duplicates_removed?: number
   corrupt_unreadable: number
+  low_quality_removed?: number
+  unmapped_skipped?: number
   split_sizes: { train: number; val: number; test: number }
   per_class: Record<string, { unique: number; train: number; val: number; test: number }>
   gallery: Record<string, string[]>
   health: Record<string, { value: unknown; detail?: string; ok: boolean }>
+  goal_100k?: Goal100K
+  robot_ready?: { tagged_images: number; per_class: Record<string, number>; note: string }
 }
 
 export interface RobotStatus {
   state: string
   mode: string
+  interface: string
+  hardware_connected: boolean
+  paused: boolean
   emergency_stop: boolean
   uptime_seconds: number
   current_object: RobotDecision | null
@@ -237,6 +299,8 @@ export interface RobotStatus {
     held_for_review: number
     rejected: number
     errors: number
+    inference_ms_sum: number
+    inference_count: number
     avg_inference_ms: number | null
     sort_rate: number | null
   }
@@ -244,7 +308,48 @@ export interface RobotStatus {
   bin_map: Record<string, string>
   bins: string[]
   confidence_threshold: number
-  health: Record<string, { status: string; mode?: string }>
+  margin_threshold: number
+  health: Record<string, { status: string; mode?: string; detail?: string }>
+}
+
+export interface Capability {
+  supported: boolean
+  detail?: string
+  method?: string
+  model?: string
+  mode?: string
+  threshold?: number
+  margin_threshold?: number
+}
+
+export interface RobotConfig {
+  confidence_threshold: number
+  margin_threshold: number
+  bin_map: Record<string, string>
+  bin_labels: Record<string, string>
+  states: string[]
+  simulated_motion_phases: string[]
+  capabilities: Record<string, Capability>
+}
+
+export interface RobotEvent {
+  id: string
+  created_at: string
+  kind: string
+  state: string | null
+  cls: string | null
+  confidence: number | null
+  target_bin: string | null
+  detail: Record<string, unknown> | string | null
+}
+
+export interface CameraProbe {
+  status: 'online' | 'offline' | 'unknown'
+  device_index: number
+  resolution?: [number, number]
+  probe_ms?: number
+  probed_at?: number
+  detail?: string
 }
 
 export interface RobotDecision {
@@ -266,6 +371,7 @@ export interface RobotDecision {
 export interface SimStep {
   decision: RobotDecision
   robot_state: string
+  motion_phases: string[]
   scan_id: string | null
   source_image: string
   prediction: PredictionResult['prediction']
@@ -283,10 +389,13 @@ export interface Health {
   device: string
   cuda_available: boolean
   dataset_prepared: boolean
+  dataset_version?: string | null
   dataset_stats: DatasetInfo | null
   training_active: boolean
   training_pid: number | null
   database: string
+  database_status?: string
+  robot_mode?: string
   server_time: number
 }
 
@@ -307,6 +416,77 @@ export interface Correction {
   correct_class: string
   source: string
   verified: number
+  status?: string
+}
+
+export interface ModelEntry {
+  model_id: string
+  run_id: string
+  architecture: string
+  dataset_version: string | null
+  training_images: number | null
+  validation_images: number | null
+  test_images: number | null
+  training_epochs: number | null
+  epochs_completed: number | null
+  best_validation_accuracy: number | null
+  test_accuracy: number | null
+  macro_f1: number | null
+  test_precision_macro: number | null
+  test_recall_macro: number | null
+  checkpoint_path: string | null
+  checkpoint_weights: string | null
+  evaluation_file: string | null
+  hyperparams: Record<string, unknown>
+  augmentation: unknown
+  device: string | null
+  training_status: string | null
+  created_at: string | null
+  status: 'DEPLOYED' | 'APPROVED' | 'CANDIDATE' | 'EVALUATED' | 'EXPERIMENT' | 'ARCHIVED'
+}
+
+export interface ErrorAnalysis {
+  run_id: string
+  available: boolean
+  note?: string
+  evaluation_file?: string | null
+  num_samples?: number
+  per_class?: { class: string; precision: number; recall: number; f1: number; support: number }[]
+  lower_performing?: { class: string; precision: number; recall: number; f1: number; support: number }[]
+  confusion_pairs_top?: { true_class: string; predicted_class: string; count: number }[]
+  confusion_matrix?: number[][]
+  classes?: string[]
+}
+
+export interface ALQueueItem extends Scan {
+  priority: number
+  reasons: string[]
+}
+
+export interface DatasetCandidate {
+  id: string
+  scan_id: string | null
+  created_at: string
+  predicted_class: string
+  correct_class: string
+  source: string
+  status: string
+  image_path: string | null
+  confidence: number | null
+  model_version: string | null
+}
+
+export interface Analytics {
+  total_predictions: number
+  by_class: Record<string, number>
+  by_model: Record<string, number>
+  average_confidence: number | null
+  low_confidence: number
+  moderate_confidence: number
+  corrected_predictions: number
+  feedback_rate: number | null
+  avg_inference_ms: number | null
+  latency_samples: number
 }
 
 export interface Activity {
@@ -320,17 +500,59 @@ export interface Activity {
   most_scanned: string | null
 }
 
+/** API origin for split deployments. Same-origin by default; set
+ *  VITE_API_URL to point at the external ML API. Node-safe (no build-time
+ *  env required) so the logic stays unit-testable. */
+export function apiBase(): string {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+  return (env?.VITE_API_URL ?? '').replace(/\/$/, '')
+}
+
+/** Human message per HTTP status. Server-provided details win when present. */
+export function friendlyHttpError(status: number, serverDetail?: unknown): string {
+  if (typeof serverDetail === 'string' && serverDetail) return serverDetail
+  switch (status) {
+    case 400:
+      return 'That image could not be read. Please try a different photo.'
+    case 404:
+      return 'EcoSort could not find what you asked for.'
+    case 409:
+      return 'EcoSort is busy with another task. Please try again in a moment.'
+    case 413:
+      return 'That photo is too large. Try a smaller image or let EcoSort shrink it first.'
+    case 415:
+      return 'That file type is not supported. Please use a photo instead.'
+    case 422:
+      return 'Something about that request was incomplete. Please try again.'
+    case 429:
+      return 'Too many requests. Please wait a moment and try again.'
+    case 500:
+      return 'EcoSort hit a problem on our side. Please try again.'
+    case 503:
+      return 'EcoSort is starting up or unavailable right now. Please try again shortly.'
+    default:
+      return `Request failed (${status}) — please try again.`
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init)
+  const base = apiBase()
+  let res: Response
+  try {
+    res = await fetch(`${base}${path}`, init)
+  } catch {
+    // Network-level failure (API down, DNS, offline): never leak raw errors.
+    throw new Error('Could not reach the EcoSort service. Check your connection and try again.')
+  }
   if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`
+    let serverDetail: unknown
     try {
       const body = await res.json()
-      if (body?.detail) detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+      serverDetail = body?.detail
     } catch {
-      /* non-JSON error body */
+      /* non-JSON error body: fall back to the status message */
     }
-    throw new Error(detail)
+    throw new Error(friendlyHttpError(res.status, serverDetail))
   }
   return res.json() as Promise<T>
 }
@@ -344,9 +566,9 @@ export const api = {
       { method: 'POST' },
     ),
 
-  predict: (file: File | Blob, source = 'upload') => {
+  predict: async (file: File | Blob, source = 'upload') => {
     const fd = new FormData()
-    fd.append('file', file, source === 'camera' ? 'capture.jpg' : 'upload.jpg')
+    fd.append('file', await prepareUpload(file), source === 'camera' ? 'capture.jpg' : 'upload.jpg')
     fd.append('source', source)
     return req<PredictionResult>('/api/predict', { method: 'POST', body: fd })
   },
@@ -374,6 +596,14 @@ export const api = {
   activity: () => req<Activity>('/api/activity'),
 
   dataset: () => req<DatasetInfo>('/api/dataset'),
+  datasetSources: () =>
+    req<{ count: number; sources: DatasetSource[]; note: string }>('/api/dataset/sources'),
+  datasetVersions: () =>
+    req<{ count: number; versions: DatasetVersion[]; current_verified: number; target: number }>(
+      '/api/dataset/versions',
+    ),
+  datasetHealth: () =>
+    req<{ report: Record<string, unknown>; target: number }>('/api/dataset/health'),
   classes: () => req<{ classes: ClassInfo[] }>('/api/classes'),
 
   trainingStatus: () =>
@@ -397,6 +627,65 @@ export const api = {
       `/api/metrics/misclassified?true_class=${trueClass}&predicted_class=${predClass}`,
     ),
 
+  models: () => req<{ count: number; models: ModelEntry[]; deployed: string | null }>('/api/models'),
+  modelsCompare: (ids: string[]) =>
+    req<{ models: ModelEntry[]; note: string }>(`/api/models/compare?ids=${ids.join(',')}`),
+  modelsDeploy: (runId: string, weights = 'best.pt', note = '') =>
+    req<{ pinned: Record<string, unknown>; active_after_reload: boolean; note: string }>(
+      '/api/models/deploy',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: runId, weights, note }),
+      },
+    ),
+  modelsDeployment: () =>
+    req<{ pin: Record<string, unknown> | null; served_checkpoint: string | null }>(
+      '/api/models/deployment',
+    ),
+  errorAnalysis: (runId: string) => req<ErrorAnalysis>(`/api/models/error-analysis?run_id=${runId}`),
+
+  predictions: (filters?: Record<string, string | number>) => {
+    const p = new URLSearchParams({ limit: String(filters?.limit ?? 200) })
+    for (const k of ['model', 'cls', 'min_conf', 'max_conf', 'date_from', 'date_to', 'feedback']) {
+      const v = filters?.[k]
+      if (v !== undefined && v !== '') p.set(k, String(v))
+    }
+    return req<{ count: number; predictions: Scan[] }>(`/api/predictions?${p}`)
+  },
+  analytics: () => req<Analytics>('/api/analytics'),
+
+  alQueue: (limit = 100) =>
+    req<{ count: number; items: ALQueueItem[]; note: string }>(`/api/active-learning/queue?limit=${limit}`),
+  alStats: () =>
+    req<{ pending: number; verified: number; rejected: number; uncertain: number }>(
+      '/api/active-learning/stats',
+    ),
+  alReview: (scanId: string, action: 'accept' | 'correct' | 'reject' | 'uncertain', correctClass?: string) =>
+    req<{ correction_id: string; scan_id: string; candidate?: boolean; status?: string }>(
+      '/api/active-learning/review',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scan_id: scanId, action, correct_class: correctClass ?? null }),
+      },
+    ),
+  datasetCandidates: (limit = 200) =>
+    req<{ count: number; candidates: DatasetCandidate[]; note: string }>(
+      `/api/dataset/candidates?limit=${limit}`,
+    ),
+  acquisitionTargets: () =>
+    req<{
+      per_class: Record<string, { display: string; verified: number; target: number; remaining: number }>
+      note: string
+    }>('/api/acquisition/targets'),
+  acquisitionTargetsPut: (targets: Record<string, number>) =>
+    req<{ targets: Record<string, number> }>('/api/acquisition/targets', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targets }),
+    }),
+
   robotStatus: () => req<RobotStatus>('/api/robot/status'),
   robotEstop: (engage: boolean) =>
     req<RobotStatus>('/api/robot/emergency-stop', {
@@ -405,18 +694,130 @@ export const api = {
       body: JSON.stringify({ engage }),
     }),
   robotReset: () => req<RobotStatus>('/api/robot/reset', { method: 'POST' }),
+  robotPause: (paused: boolean) =>
+    req<RobotStatus>('/api/robot/pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paused }),
+    }),
   robotSimStep: () => req<SimStep>('/api/robot/simulate/step', { method: 'POST' }),
-  robotEvents: (limit = 50) => req<{ count: number; events: unknown[] }>(`/api/robot/events?limit=${limit}`),
+  robotEvents: (limit = 50) => req<{ count: number; events: RobotEvent[] }>(`/api/robot/events?limit=${limit}`),
+  robotConfig: () => req<RobotConfig>('/api/robot/config'),
+  robotConfigPut: (body: { confidence_threshold?: number; margin_threshold?: number }) =>
+    req<{ confidence_threshold: number; margin_threshold: number }>('/api/robot/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  robotSort: (file: File | Blob) => {
+    const fd = new FormData()
+    fd.append('file', file, 'robot-sort.jpg')
+    return req<{
+      command: {
+        action: string
+        target_bin: string | null
+        bin_label: string | null
+        class: string
+        confidence: number
+        centroid: Centroid
+        reason: string
+        issued_at: number
+        actuated: boolean
+        note: string
+      }
+      robot_state: string
+      prediction: PredictionResult['prediction']
+      image_url: string
+      telemetry: RobotStatus['telemetry']
+    }>('/api/robot/sort', { method: 'POST', body: fd })
+  },
+  systemCamera: (index = 0) => req<CameraProbe>(`/api/system/camera?index=${index}`),
   robotCompatibility: () =>
-    req<{ model_version: string | null; checks: Record<string, boolean>; ready_for_deployment: boolean; blocking: string[] }>(
-      '/api/robot/compatibility',
-    ),
+    req<{
+      model_version: string | null
+      checks: Record<string, boolean>
+      ready_for_deployment: boolean
+      blocking: string[]
+      hardware_connected: boolean
+      interface: string
+      note: string
+    }>('/api/robot/compatibility'),
   robotBinMap: (mapping: Record<string, string>) =>
     req<{ bin_map: Record<string, string> }>('/api/robot/bin-map', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mapping }),
     }),
+  robotPredict: (file: File | Blob) => {
+    const fd = new FormData()
+    fd.append('file', file, 'robot-predict.jpg')
+    return req<{
+      simulation: boolean
+      prediction: PredictionResult['prediction']
+      centroid: Centroid
+      timings_ms: Record<string, number>
+      model_version: string
+      note: string
+    }>('/api/robot/predict', { method: 'POST', body: fd })
+  },
+  robotStop: () =>
+    req<{ simulation: boolean; stopped: boolean; state: string }>('/api/robot/stop', { method: 'POST' }),
+  robotFeedback: (scanId: string | null, correct: boolean, correctClass?: string) =>
+    req<{ simulation: boolean; stored: boolean; note?: string; correction_id?: string; verified_class?: string }>(
+      '/api/robot/feedback',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scan_id: scanId, correct, correct_class: correctClass ?? null }),
+      },
+    ),
+  robotAdapter: () =>
+    req<{ adapter: string; simulation: boolean; status: RobotStatus; note: string }>('/api/robot/adapter'),
 }
 
 export const b64url = (b64: string) => `data:image/png;base64,${b64}`
+
+/** Prefix for same-origin API asset paths when the API lives elsewhere. */
+export function assetUrl(path: string | null | undefined): string {
+  if (!path) return ''
+  if (/^(data:|https?:\/\/)/.test(path)) return path
+  return `${apiBase()}${path}`
+}
+
+/**
+ * Shrink large uploads client-side so normal phone photos survive hosting
+ * payload caps (and upload faster). Images already small enough pass through
+ * untouched. Returns the original blob when shrinking is impossible.
+ */
+export async function prepareUpload(file: File | Blob): Promise<File | Blob> {
+  const MAX_SIDE = 1600
+  const MAX_BYTES = 4 * 1024 * 1024
+  try {
+    if (file.size <= MAX_BYTES && file.type !== 'image/heic' && file.type !== 'image/heif') {
+      // Still need dimensions: decode cheaply to check the long edge.
+      const probe = await createImageBitmap(file).catch(() => null)
+      if (!probe) return file
+      const longEdge = Math.max(probe.width, probe.height)
+      probe.close()
+      if (longEdge <= MAX_SIDE) return file
+    }
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * scale)
+    canvas.height = Math.round(bitmap.height * scale)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      bitmap.close()
+      return file
+    }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const shrunk: Blob | null = await new Promise((res) =>
+      canvas.toBlob(res, 'image/jpeg', 0.85),
+    )
+    return shrunk ?? file
+  } catch {
+    return file
+  }
+}

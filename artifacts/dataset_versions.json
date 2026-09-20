@@ -1,0 +1,148 @@
+[
+  {
+    "created_at": "2026-09-19T16:04:54+00:00",
+    "version": "EcoSort Dataset v1",
+    "total_images": 8858,
+    "class_distribution": {
+      "battery": 381,
+      "brown_glass": 0,
+      "cardboard": 854,
+      "clothes": 1444,
+      "glass": 1135,
+      "green_glass": 0,
+      "metal": 720,
+      "organic": 675,
+      "paper": 1106,
+      "plastic": 1087,
+      "shoes": 1078,
+      "trash": 378,
+      "white_glass": 0
+    },
+    "sources": [
+      {
+        "name": "bundled-base",
+        "note": "pre-existing local corpus, provenance to be documented per-source"
+      }
+    ],
+    "duplicates_removed": 0,
+    "corrupt_removed": 0,
+    "near_duplicates_removed": 3400,
+    "low_quality_removed": 1,
+    "split": {
+      "train": 6201,
+      "val": 1329,
+      "test": 1328
+    },
+    "split_ratios": [
+      0.7,
+      0.15,
+      0.15
+    ],
+    "seed": 42,
+    "note": "Seed version bootstrapped from the audited on-disk split. Add per-source licences via `python -m ml.ingest --register-only` or the sources file.",
+    "kind": "finalized"
+  },
+  {
+    "created_at": "2026-09-19T16:07:55+00:00",
+    "version": "EcoSort Dataset v2",
+    "total_images": 10421,
+    "class_distribution": {
+      "battery": 534,
+      "brown_glass": 0,
+      "cardboard": 1046,
+      "clothes": 1734,
+      "glass": 1330,
+      "green_glass": 0,
+      "metal": 849,
+      "organic": 694,
+      "paper": 1233,
+      "plastic": 1271,
+      "shoes": 1305,
+      "trash": 425,
+      "white_glass": 0
+    },
+    "sources": [],
+    "duplicates_removed": 0,
+    "near_duplicates_removed": 1837,
+    "corrupt_removed": 0,
+    "low_quality_removed": 1,
+    "split": {
+      "train": 7295,
+      "val": 1564,
+      "test": 1562
+    },
+    "note": "re-audit with conservative near-duplicate threshold (dHash<=4, same-class) + quality gating; model-compatible labels kept",
+    "kind": "finalized"
+  },
+  {
+    "created_at": "2026-09-19T19:43:42+00:00",
+    "version": "EcoSort Dataset v3",
+    "total_images": 23172,
+    "class_distribution": {
+      "battery": 932,
+      "brown_glass": 0,
+      "cardboard": 1863,
+      "clothes": 6239,
+      "glass": 2900,
+      "green_glass": 0,
+      "metal": 1475,
+      "organic": 1507,
+      "paper": 2214,
+      "plastic": 2331,
+      "shoes": 2656,
+      "trash": 1055,
+      "white_glass": 0
+    },
+    "sources": [
+      "bundled-base-corpus",
+      "Garbage-YOLO-khoaliamle"
+    ],
+    "duplicates_removed": 0,
+    "near_duplicates_removed": 1837,
+    "corrupt_removed": 0,
+    "low_quality_removed": 1,
+    "split": {
+      "train": 16219,
+      "val": 3475,
+      "test": 3478
+    },
+    "note": "ingest:Garbage-YOLO-khoaliamle (MIT, uploader-declared) + re-audit with blocking near-dup + single-open assess",
+    "kind": "finalized"
+  },
+  {
+    "created_at": "2026-09-20T06:21:15+00:00",
+    "version": "working-set+TrashNet-garythung",
+    "total_images": 23335,
+    "class_distribution": {
+      "battery": 932,
+      "brown_glass": 0,
+      "cardboard": 1892,
+      "clothes": 6239,
+      "glass": 2925,
+      "green_glass": 0,
+      "metal": 1508,
+      "organic": 1507,
+      "paper": 2247,
+      "plastic": 2363,
+      "shoes": 2656,
+      "trash": 1066,
+      "white_glass": 0
+    },
+    "sources": [
+      "bundled-base-corpus",
+      "Garbage-YOLO-khoaliamle",
+      "TrashNet-garythung"
+    ],
+    "duplicates_removed": 0,
+    "near_duplicates_removed": 1837,
+    "corrupt_removed": 0,
+    "low_quality_removed": 1,
+    "split": {
+      "train": 16333,
+      "val": 3500,
+      "test": 3502
+    },
+    "note": "ingest:TrashNet-garythung",
+    "kind": "staging"
+  }
+]

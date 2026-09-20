@@ -1,0 +1,29 @@
+{
+  "parent_version": "EcoSort Dataset v3",
+  "v3_size": 23172,
+  "working_size": 23335,
+  "considered": 2,
+  "accepted": 1,
+  "auto_rejected": [
+    {
+      "candidate_id": "v4c-d74b40e8",
+      "review_status": "REJECTED",
+      "reason": "exact duplicate check: md5 already in v3 or candidate pool"
+    }
+  ],
+  "pre_rejected": [],
+  "by_class": {
+    "paper": 1
+  },
+  "gate": {
+    "min_new_samples": 200,
+    "min_classes": 2,
+    "min_per_class": 10,
+    "new_samples": 1,
+    "classes_covered": 0,
+    "passed": false
+  },
+  "test_set": "untouched \u2014 new data splits into train/val only",
+  "v4_created": false,
+  "note": "Gate refused: verified pool too small for a meaningful v4. Review more queue items; v3 stays the training dataset."
+}

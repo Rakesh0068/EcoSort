@@ -1,16 +1,15 @@
-import { Route, Routes } from 'react-router-dom'
+import { Component, type ReactNode } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ErrorState } from './components/ui'
-import Landing from './pages/Landing'
-import Dashboard from './pages/Dashboard'
+import Home from './pages/Home'
 import Scan from './pages/Scan'
-import History from './pages/History'
-import Robot from './pages/Robot'
-import Dataset from './pages/Dataset'
-import Training from './pages/Training'
-import Evaluation from './pages/Evaluation'
-import Review from './pages/Review'
-import Learn from './pages/Learn'
+import HowItWorks from './pages/HowItWorks'
+import Guide from './pages/Guide'
+import About from './pages/About'
+import MyScans from './pages/MyScans'
+import Future from './pages/Future'
+import Research from './pages/Research'
 
 function Page({ children }: { children: React.ReactNode }) {
   return (
@@ -19,9 +18,6 @@ function Page({ children }: { children: React.ReactNode }) {
     </ErrorBoundaryFallback>
   )
 }
-
-/** Minimal guard so a single broken page cannot blank the whole app. */
-import { Component, type ReactNode } from 'react'
 
 class ErrorBoundaryFallback extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null }
@@ -32,112 +28,64 @@ class ErrorBoundaryFallback extends Component<{ children: ReactNode }, { error: 
 
   render() {
     if (this.state.error) {
-      return <ErrorState message={this.state.error.message} onRetry={() => this.setState({ error: null })} />
+      return (
+        <Layout>
+          <div className="container-site max-w-2xl py-16">
+            <ErrorState message={this.state.error.message} onRetry={() => this.setState({ error: null })} />
+          </div>
+        </Layout>
+      )
     }
     return this.props.children
   }
 }
 
+function Public({ children }: { children: React.ReactNode }) {
+  return (
+    <Layout>
+      <Page>{children}</Page>
+    </Layout>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route
-        path="/dashboard"
-        element={
-          <Layout>
-            <Page>
-              <Dashboard />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/scan"
-        element={
-          <Layout>
-            <Page>
-              <Scan />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/history"
-        element={
-          <Layout>
-            <Page>
-              <History />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/robot"
-        element={
-          <Layout>
-            <Page>
-              <Robot />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/dataset"
-        element={
-          <Layout>
-            <Page>
-              <Dataset />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/training"
-        element={
-          <Layout>
-            <Page>
-              <Training />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/evaluation"
-        element={
-          <Layout>
-            <Page>
-              <Evaluation />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/review"
-        element={
-          <Layout>
-            <Page>
-              <Review />
-            </Page>
-          </Layout>
-        }
-      />
-      <Route
-        path="/learn"
-        element={
-          <Layout>
-            <Page>
-              <Learn />
-            </Page>
-          </Layout>
-        }
-      />
+      {/* Consumer site */}
+      <Route path="/" element={<Public><Home /></Public>} />
+      <Route path="/scan" element={<Public><Scan /></Public>} />
+      <Route path="/how-it-works" element={<Public><HowItWorks /></Public>} />
+      <Route path="/guide" element={<Public><Guide /></Public>} />
+      <Route path="/about" element={<Public><About /></Public>} />
+      <Route path="/my-scans" element={<Public><MyScans /></Public>} />
+      <Route path="/future" element={<Public><Future /></Public>} />
+
+      {/* Research & ML — all technical functionality preserved */}
+      <Route path="/research/*" element={<Page><Research /></Page>} />
+
+      {/* Legacy technical routes → research (keeps bookmarks & backend docs working) */}
+      <Route path="/dashboard" element={<Navigate to="/research" replace />} />
+      <Route path="/dataset" element={<Navigate to="/research/dataset" replace />} />
+      <Route path="/training" element={<Navigate to="/research/training" replace />} />
+      <Route path="/evaluation" element={<Navigate to="/research/evaluation" replace />} />
+      <Route path="/review" element={<Navigate to="/research/review" replace />} />
+      <Route path="/history" element={<Navigate to="/my-scans" replace />} />
+      <Route path="/learn" element={<Navigate to="/guide" replace />} />
+      <Route path="/robot" element={<Navigate to="/future" replace />} />
+
       <Route
         path="*"
         element={
-          <Layout>
-            <ErrorState message={`No route matches this URL.`} />
-          </Layout>
+          <Public>
+            <div className="container-site max-w-xl py-20 text-center">
+              <h1 className="font-display text-4xl">That page isn't here.</h1>
+              <p className="mt-3 text-[16px] text-muted">Let's get you back to something useful.</p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <a href="/" className="btn-primary">Home</a>
+                <a href="/scan" className="btn-ghost">Scan waste</a>
+              </div>
+            </div>
+          </Public>
         }
       />
     </Routes>

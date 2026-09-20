@@ -8,21 +8,30 @@ interface ThemeCtx {
   setTheme: (t: Theme) => void
 }
 
-const Ctx = createContext<ThemeCtx>({ theme: 'dark', toggle: () => {}, setTheme: () => {} })
+const Ctx = createContext<ThemeCtx>({ theme: 'light', toggle: () => {}, setTheme: () => {} })
 const KEY = 'ecosort-theme'
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = localStorage.getItem(KEY)
-    if (stored === 'light' || stored === 'dark') return stored
-    return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+    try {
+      const stored = localStorage.getItem(KEY)
+      if (stored === 'dark' || stored === 'light') return stored
+    } catch {
+      /* private mode */
+    }
+    // Light mode is the default: clean, fresh, approachable.
+    return 'light'
   })
 
   useEffect(() => {
     const root = document.documentElement
     root.classList.toggle('dark', theme === 'dark')
     root.style.colorScheme = theme
-    localStorage.setItem(KEY, theme)
+    try {
+      localStorage.setItem(KEY, theme)
+    } catch {
+      /* ignore */
+    }
   }, [theme])
 
   const setTheme = useCallback((t: Theme) => setThemeState(t), [])

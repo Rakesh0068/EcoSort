@@ -1,292 +1,203 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { api, type Health } from '../api'
 import { useTheme } from '../theme'
-import { Badge, StatusDot, cx } from './ui'
+import { cx } from './ui'
 
-interface NavEntry {
-  to: string
-  label: string
-}
-interface NavGroup {
-  group: string
-  items: NavEntry[]
-}
-
-export const NAV: NavGroup[] = [
-  { group: 'Overview', items: [{ to: '/dashboard', label: 'Dashboard' }] },
-  {
-    group: 'Classify',
-    items: [
-      { to: '/scan', label: 'Scan Waste' },
-      { to: '/history', label: 'History' },
-    ],
-  },
-  { group: 'Robot', items: [{ to: '/robot', label: 'Control Center' }] },
-  {
-    group: 'ML Lab',
-    items: [
-      { to: '/dataset', label: 'Dataset' },
-      { to: '/training', label: 'Training' },
-      { to: '/evaluation', label: 'Evaluation' },
-    ],
-  },
-  {
-    group: 'Learning',
-    items: [{ to: '/review', label: 'Review Queue' }],
-  },
-  { group: 'Knowledge', items: [{ to: '/learn', label: 'Waste Guide' }] },
+const PUBLIC_NAV = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/scan', label: 'Scan Waste' },
+  { to: '/guide', label: 'Waste Guide' },
+  { to: '/how-it-works', label: 'How It Works' },
+  { to: '/future', label: 'Robot' },
+  { to: '/about', label: 'About' },
 ]
-
-const FLAT: NavEntry[] = NAV.flatMap((g) => g.items)
 
 function Wordmark() {
   return (
-    <Link to="/" className="group flex items-center gap-2.5">
-      <span className="relative grid h-8 w-8 place-items-center rounded-xl bg-emerald/15 text-emerald ring-1 ring-emerald/25 transition-transform duration-300 ease-spring group-hover:scale-105">
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
-          <path d="M7 19V9M12 19V5M17 19v-7" strokeLinecap="round" />
+    <Link to="/" className="group flex items-center gap-2.5" aria-label="EcoSort home">
+      <span className="grid h-9 w-9 place-items-center rounded-2xl bg-forest text-white transition-transform duration-300 group-hover:scale-105 dark:bg-emerald">
+        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2.4">
+          <path d="M4 9c2-3.5 5-5 8-5 4 0 7 2.5 8 6-.5 5-4 9.5-9 9.5-2.5 0-4.5-1-6-2.5" strokeLinecap="round" />
+          <path d="M4 9l1.5 4L9 14M4 9l4 1" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
-      <span className="text-[15px] font-extrabold tracking-tight text-ink">
-        Eco<span className="text-emerald">Sort</span>
-      </span>
+      <span className="text-[19px] font-extrabold tracking-tight text-ink">EcoSort</span>
     </Link>
   )
 }
 
-function ModelPill({ health }: { health: Health | null }) {
-  if (!health) return <span className="chip">checking…</span>
-  const loaded = health.model_loaded
+function ReadyPill({ health }: { health: Health | null }) {
+  if (!health) return <span className="chip">Getting ready…</span>
+  const ready = health.model_loaded
   return (
-    <span className="chip" title={health.checkpoint ?? 'no checkpoint loaded'}>
-      <StatusDot tone={loaded ? 'emerald' : 'amber'} pulse={loaded} />
-      {loaded ? (health.model_version ?? 'model loaded') : 'model not loaded'}
+    <span className="chip" title={ready ? 'EcoSort is ready to identify waste' : 'EcoSort is starting up'}>
+      <span className={cx('h-2 w-2 rounded-full', ready ? 'bg-emerald' : 'bg-amber')} />
+      {ready ? 'EcoSort is ready' : 'Starting up…'}
     </span>
-  )
-}
-
-function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [q, setQ] = useState('')
-  const [classes, setClasses] = useState<{ id: string; display: string }[]>([])
-  const nav = useNavigate()
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    setQ('')
-    setTimeout(() => inputRef.current?.focus(), 20)
-    api.classes().then((r) => setClasses(r.classes)).catch(() => setClasses([]))
-  }, [open])
-
-  const results = useMemo(() => {
-    const term = q.trim().toLowerCase()
-    const pages = FLAT.filter((p) => !term || p.label.toLowerCase().includes(term)).map((p) => ({
-      kind: 'Page',
-      label: p.label,
-      to: p.to,
-    }))
-    const cls = classes
-      .filter((c) => term && (c.display.toLowerCase().includes(term) || c.id.includes(term)))
-      .map((c) => ({ kind: 'Waste class', label: c.display, to: `/learn?class=${c.id}` }))
-    return [...pages, ...cls].slice(0, 9)
-  }, [q, classes])
-
-  if (!open) return null
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/45 px-4 pt-[12vh] backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Search EcoSort"
-    >
-      <div
-        className="w-full max-w-lg overflow-hidden rounded-card border border-line bg-surface shadow-lift animate-fadeUp"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 border-b border-line px-4">
-          <span className="text-muted">⌕</span>
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose()
-              if (e.key === 'Enter' && results[0]) {
-                nav(results[0].to)
-                onClose()
-              }
-            }}
-            placeholder="Search pages, waste classes…"
-            className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-muted/70"
-          />
-          <kbd className="chip shrink-0">esc</kbd>
-        </div>
-        <div className="max-h-72 overflow-y-auto p-2">
-          {results.length === 0 && (
-            <div className="px-3 py-6 text-center text-sm text-muted">No matches</div>
-          )}
-          {results.map((r, i) => (
-            <button
-              key={`${r.kind}-${r.label}`}
-              onClick={() => {
-                nav(r.to)
-                onClose()
-              }}
-              className={cx(
-                'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
-                i === 0 ? 'bg-emerald/10 text-ink' : 'text-muted hover:bg-surface2 hover:text-ink',
-              )}
-            >
-              <span className="w-20 shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted/70">
-                {r.kind}
-              </span>
-              <span className="flex-1 font-medium">{r.label}</span>
-              <span className="text-muted/50">↵</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
   )
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggle } = useTheme()
   const [health, setHealth] = useState<Health | null>(null)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [navOpen, setNavOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const loc = useLocation()
+  const onResearch = loc.pathname.startsWith('/research')
 
   useEffect(() => {
     let alive = true
     const load = () => api.health().then((h) => alive && setHealth(h)).catch(() => alive && setHealth(null))
     load()
-    const id = setInterval(load, 10000)
+    const id = setInterval(load, 15000)
     return () => {
       alive = false
       clearInterval(id)
     }
   }, [])
 
-  useEffect(() => setNavOpen(false), [loc.pathname])
-
-  const onKey = useCallback((e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-      e.preventDefault()
-      setSearchOpen((v) => !v)
-    }
-  }, [])
-  useEffect(() => {
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onKey])
+  useEffect(() => setMenuOpen(false), [loc.pathname, loc.search])
 
   return (
     <div className="min-h-screen bg-bg">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
-          <button
-            className="btn-ghost !px-2 !py-1.5 lg:hidden"
-            onClick={() => setNavOpen((v) => !v)}
-            aria-label="Toggle navigation"
-          >
-            ☰
-          </button>
+      <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur-xl">
+        <div className="container-site flex h-[68px] items-center gap-3">
           <Wordmark />
 
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="ml-auto hidden items-center gap-2 rounded-xl border border-line bg-surface2/60 px-3 py-1.5 text-sm text-muted transition-colors hover:border-emerald/40 md:flex"
-          >
-            <span>⌕</span>
-            <span>Search EcoSort…</span>
-            <kbd className="chip ml-6 !py-0.5">⌘K</kbd>
-          </button>
+          <nav className="ml-6 hidden items-center gap-1 lg:flex" aria-label="Main">
+            {PUBLIC_NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => cx('nav-link', isActive && 'nav-link-active')}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+            <NavLink
+              to="/research"
+              className={({ isActive }) =>
+                cx(
+                  'nav-link !px-3 text-[13px]',
+                  isActive || onResearch ? 'nav-link-active' : 'opacity-70',
+                )
+              }
+              title="Dataset, training, evaluation and system health"
+            >
+              Research
+            </NavLink>
+          </nav>
 
-          <div className="ml-auto flex items-center gap-2 md:ml-3">
-            <ModelPill health={health} />
+          <div className="ml-auto hidden items-center gap-2 md:flex">
+            <ReadyPill health={health} />
             <button
               onClick={toggle}
-              className="btn-ghost !px-2.5 !py-1.5"
+              className="btn-ghost !rounded-full !px-3 !py-2 text-sm"
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? '☀' : '☾'}
             </button>
+            <Link to="/scan" className="btn-primary !py-2.5">
+              Scan My Waste
+            </Link>
           </div>
+
+          <button
+            className="btn-ghost ml-auto !rounded-full !px-3.5 !py-2 lg:hidden"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
         </div>
-      </header>
 
-      <div className="mx-auto flex max-w-[1600px] gap-6 px-4 sm:px-6">
-        {/* Sidebar */}
-        <aside
-          className={cx(
-            'fixed inset-x-0 top-14 z-30 max-h-[calc(100vh-3.5rem)] overflow-y-auto border-b border-line bg-bg/95 p-4 backdrop-blur-xl lg:sticky lg:top-20 lg:block lg:h-fit lg:w-60 lg:shrink-0 lg:border-0 lg:bg-transparent lg:p-0 lg:py-6',
-            navOpen ? 'block' : 'hidden',
-          )}
-        >
-          <nav className="space-y-5">
-            {NAV.map((g) => (
-              <div key={g.group}>
-                <div className="mb-1.5 px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/60">
-                  {g.group}
-                </div>
-                <div className="space-y-0.5">
-                  {g.items.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      className={({ isActive }) => cx('nav-item', isActive && 'nav-item-active')}
-                    >
-                      {item.label}
-                    </NavLink>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
-
-          <div className="mt-6 hidden rounded-card border border-line bg-surface/60 p-3 lg:block">
-            <div className="kicker mb-2">Runtime</div>
-            <div className="space-y-1.5 font-mono text-[11px] text-muted">
-              <div className="flex justify-between gap-2">
-                <span>device</span>
-                <span className="text-ink">{health?.device ?? '—'}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span>training</span>
-                <span className={health?.training_active ? 'text-emerald' : 'text-ink'}>
-                  {health?.training_active ? 'active' : 'idle'}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span>dataset</span>
-                <span className="text-ink">{health?.dataset_prepared ? 'ready' : 'missing'}</span>
+        {menuOpen && (
+          <nav className="border-t border-line bg-bg px-5 py-4 lg:hidden" aria-label="Mobile">
+            <div className="grid gap-1">
+              {PUBLIC_NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    cx(
+                      'rounded-2xl px-4 py-3 text-[16px] font-medium',
+                      isActive ? 'bg-surface2 text-ink' : 'text-muted',
+                    )
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+              <NavLink
+                to="/research"
+                className="rounded-2xl px-4 py-3 text-[14px] font-medium text-muted"
+              >
+                Research & ML →
+              </NavLink>
+              <Link to="/scan" className="btn-primary mt-2 w-full">
+                Scan My Waste
+              </Link>
+              <div className="mt-2 flex items-center justify-between px-1">
+                <ReadyPill health={health} />
+                <button onClick={toggle} className="btn-ghost !rounded-full !px-3 !py-1.5 text-sm">
+                  {theme === 'dark' ? '☀ Light' : '☾ Dark'}
+                </button>
               </div>
             </div>
+          </nav>
+        )}
+      </header>
+
+      <main className="min-w-0 flex-1">{children}</main>
+
+      <footer className="mt-8 border-t border-line bg-surface/60">
+        <div className="container-site grid gap-10 py-12 md:grid-cols-[1.2fr_1fr_1fr]">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-forest text-white dark:bg-emerald">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4">
+                  <path d="M4 9c2-3.5 5-5 8-5 4 0 7 2.5 8 6-.5 5-4 9.5-9 9.5-2.5 0-4.5-1-6-2.5" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="text-[17px] font-extrabold tracking-tight">EcoSort</span>
+            </div>
+            <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-muted">
+              Show EcoSort your waste. We'll help you identify it and know what to do with it.
+            </p>
+            <div className="mt-5">
+              <ReadyPill health={health} />
+            </div>
           </div>
-        </aside>
-
-        {/* Content */}
-        <main className="min-w-0 flex-1 py-6">{children}</main>
-      </div>
-
-      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
-
-      <footer className="mx-auto max-w-[1600px] px-4 pb-10 pt-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-xs text-muted">
-          <span>
-            EcoSort — robot-ready waste intelligence. EfficientNetB0 · {health?.dataset_stats?.num_classes ?? '—'} classes ·{' '}
-            {health?.dataset_stats?.total_unique?.toLocaleString?.() ?? '—'} images
-          </span>
-          <Badge tone={health?.cuda_available ? 'good' : 'warn'}>
-            <StatusDot tone={health?.cuda_available ? 'emerald' : 'amber'} pulse={false} />
-            {health?.device ?? 'unknown device'}
-          </Badge>
+          <div>
+            <div className="text-[14px] font-semibold text-ink">Explore</div>
+            <div className="mt-3 grid gap-2 text-[15px]">
+              <Link className="text-muted hover:text-ink" to="/scan">Scan waste</Link>
+              <Link className="text-muted hover:text-ink" to="/how-it-works">How it works</Link>
+              <Link className="text-muted hover:text-ink" to="/guide">Waste guide</Link>
+              <Link className="text-muted hover:text-ink" to="/future">Where EcoSort is going</Link>
+              <Link className="text-muted hover:text-ink" to="/my-scans">My scans</Link>
+            </div>
+          </div>
+          <div>
+            <div className="text-[14px] font-semibold text-ink">For researchers</div>
+            <div className="mt-3 grid gap-2 text-[15px]">
+              <Link className="text-muted hover:text-ink" to="/research">Research overview</Link>
+              <Link className="text-muted hover:text-ink" to="/research/dataset">Dataset</Link>
+              <Link className="text-muted hover:text-ink" to="/research/training">Training</Link>
+              <Link className="text-muted hover:text-ink" to="/research/evaluation">Evaluation</Link>
+              <Link className="text-muted hover:text-ink" to="/about">About EcoSort</Link>
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-line">
+          <div className="container-site flex flex-wrap items-center gap-3 py-5 text-[13px] text-muted">
+            <span>© {new Date().getFullYear()} EcoSort. Learn to sort better.</span>
+            <span className="ml-auto">Simulation available · hardware integrations are clearly labelled.</span>
+          </div>
         </div>
       </footer>
     </div>

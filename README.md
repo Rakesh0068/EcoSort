@@ -15,7 +15,8 @@ low-confidence scans for review and feeds verified labels into retraining.
 | Architecture | EfficientNet-B0, ImageNet-pretrained (head training → full fine-tune) |
 | Input | 224 × 224 RGB, ImageNet normalization |
 | Classes | battery · biological · cardboard · clothes · glass · metal · paper · plastic · shoes · trash |
-| Reference run | `run-001` — 96.2% validation accuracy on 12,259 images |
+| Current run | `run-002` — **97.93%** best validation accuracy, **97.27%** test accuracy (macro F1 0.968) on 3,478 held-out images, EcoSort Dataset v3 (16,219 train / 3,475 val) |
+| Previous run | `run-001` — 96.19% val / 96.36% test (archived, reproducible) |
 | Hardware | trained on CUDA (RTX 3050 6 GB); inference runs on CPU or GPU |
 
 ## Features
@@ -94,16 +95,30 @@ Full interactive docs at `/docs` once the server is running. Main groups:
 - `GET /api/scans`, `GET /api/scans/{id}`, `GET /api/scans/{id}/explain`,
   `POST /api/scans/{id}/feedback`
 - `GET /api/review-queue`, `GET /api/corrections`, `GET /api/activity`
-- `GET /api/dataset`, `GET /api/classes`
+- `GET /api/dataset`, `GET /api/dataset/sources|versions|health|targets|candidates`
 - `GET /api/training/status`, `POST /api/training/start`
 - `GET /api/metrics`, `GET /api/metrics/misclassified`
-- `GET /api/robot/status`, `POST /api/robot/simulate/step`,
-  `POST /api/robot/emergency-stop`, `POST /api/robot/reset`, `PUT /api/robot/bin-map`,
-  `GET /api/robot/events`, `GET /api/robot/compatibility`
+- `GET /api/models`, `GET /api/models/compare`, `GET /api/models/error-analysis`
+- `GET /api/predictions`, `GET /api/analytics`
+- `GET /api/active-learning/queue`, `POST /api/active-learning/review`
+- `GET /api/robot/status`, `POST /api/robot/predict`, `POST /api/robot/sort`,
+  `POST /api/robot/simulate/step`, `POST /api/robot/stop`,
+  `POST /api/robot/emergency-stop`, `POST /api/robot/reset`, `POST /api/robot/feedback`,
+  `PUT /api/robot/bin-map`, `GET /api/robot/events`, `GET /api/robot/compatibility`,
+  `GET /api/robot/adapter`
+
+## Tests
+
+```bash
+python -m pytest tests/ -q   # model load, prediction, confidence policy, feedback loop,
+                             # active learning, robot simulation, registry + data integrity
+```
 
 ## Notes
 
 - Training via the API requires CUDA; the API refuses to start CPU-only runs. Checkpoint
   artifacts, metrics, uploads and the database are gitignored.
-- `artifacts/runs/run-001/` ships `metrics.json` with the full per-epoch history of the
-  reference run; evaluation JSON lives in `artifacts/metrics/`.
+- `artifacts/runs/run-001/` and `run-002/` ship `metrics.json` with the full per-epoch
+  history of each run; evaluation JSON lives in `artifacts/metrics/`.
+- Docs: `docs/ML_PIPELINE.md`, `docs/DATASET.md`, `docs/ROBOT_INTEGRATION.md`,
+  `docs/EXPERIMENTS.md`, `docs/API.md`, `docs/IMPLEMENTATION_STATUS.md`.

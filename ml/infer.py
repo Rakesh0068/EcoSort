@@ -22,7 +22,19 @@ from .gradcam import GradCAM, activation_centroid, colorize_cam, resize_cam
 from .model import build_model
 from .recycling import UNCERTAIN_TIPS, guidance
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def _pick_device() -> "torch.device":
+    # device_count() matters: a driver can be present while no GPU is visible
+    # (e.g. CUDA_VISIBLE_DEVICES=""), in which case cuda is unusable.
+    if torch.cuda.is_available():
+        try:
+            if torch.cuda.device_count() > 0:
+                return torch.device("cuda")
+        except Exception:
+            pass
+    return torch.device("cpu")
+
+
+DEVICE = _pick_device()
 
 EVAL_TF = transforms.Compose(
     [
@@ -177,7 +189,7 @@ class Predictor:
         confident = confidence >= config.CONFIDENCE_THRESHOLD
         margin = confidence - top5[1]["probability"] if len(top5) > 1 else confidence
 
-        if confident and margin >= 0.15:
+        if confident and margin >= config.MARGIN_THRESHOLD:
             state, state_reason = "high", "Clear margin over the next-best class."
         elif confident:
             state, state_reason = "moderate", "Above threshold but the runner-up is close."
@@ -243,11 +255,16 @@ class Predictor:
             "timings_ms": {k: round(v, 2) for k, v in timings.items()},
             "model": {
                 "version": self.version,
+                "run_id": self.meta.get("run_id"),
                 "architecture": "efficientnet_b0",
                 "input_size": config.IMAGE_SIZE,
                 "device": str(DEVICE),
                 "num_classes": config.NUM_CLASSES,
                 "checkpoint": str(self.checkpoint_path) if self.checkpoint_path else None,
+                "dataset_version": (self.meta.get("training_config") or {}).get("dataset_version"),
+                "dataset_verified_images": (self.meta.get("training_config") or {}).get(
+                    "dataset_verified_images"
+                ),
             },
         }
 
@@ -258,10 +275,20 @@ class Predictor:
 
 
 def resolve_checkpoint(run_id: str | None = None, weights: str = "best.pt") -> Path | None:
-    """Newest completed run's checkpoint, or an explicit run id."""
+    """Explicit pin wins; otherwise the newest completed run's checkpoint."""
     if run_id:
         p = config.RUNS_DIR / run_id / weights
         return p if p.exists() else None
+    try:
+        from .model_registry import get_pin
+
+        pin = get_pin()
+        if pin:
+            p = Path(pin["checkpoint"])
+            if p.exists():
+                return p
+    except Exception:
+        pass
     candidates = []
     for run in sorted(config.RUNS_DIR.glob("run-*")):
         for name in ("best.pt", "final.pt", "last.pt"):
